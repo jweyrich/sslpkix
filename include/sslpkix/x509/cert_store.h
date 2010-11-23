@@ -6,9 +6,11 @@
 #include <openssl/x509_vfy.h>
 #include "sslpkix/x509/cert.h"
 #include "sslpkix/common.h"
-#if 1
+#if 0
 #include "sslpkix/openssl/apps/verify.h"
 #endif
+
+namespace sslpkix {
 
 class CertificateStore {
 	// More info: http://www.umich.edu/~x509/ssleay/x509_store.html
@@ -30,7 +32,7 @@ public:
 			return false;
 		}
 		// The callback is only needed for more descriptive error messages, etc
-		#if 1
+		#if 0
 		X509_STORE_set_verify_cb_func(_store, verify_callback);
 		#endif
 		return true;
@@ -122,3 +124,5 @@ public:
 		return ret == 1;
 	}
 };
+
+} // namespace sslpkix

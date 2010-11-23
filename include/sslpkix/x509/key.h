@@ -7,6 +7,8 @@
 #include "sslpkix/iosink.h"
 #include "sslpkix/common.h"
 
+namespace sslpkix {
+
 class Key {
 public:
 	Key() : _key(NULL), _is_extern(false) {
@@ -75,3 +77,5 @@ public:
 		return ret != 0;
 	}
 };
+
+} // namespace sslpkix

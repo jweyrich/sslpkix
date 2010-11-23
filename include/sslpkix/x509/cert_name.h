@@ -4,6 +4,8 @@
 #include <string>
 #include <openssl/x509.h>
 
+namespace sslpkix {
+
 // TODO(jweyrich): implement X509_NAME_dup, X509_NAME_cmp, X509_NAME_hash, X509_NAME_delete_entry
 
 class CertificateName {
@@ -111,3 +113,5 @@ protected:
 	friend class Certificate;
 	friend class CertificateRequest;
 };
+
+} // namespace sslpkix

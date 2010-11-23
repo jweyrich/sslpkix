@@ -1,8 +1,6 @@
 #pragma once
 
-#ifdef  __cplusplus
-extern "C" {
-#endif
+namespace sslpkix {
 
 #ifdef __GNUC__
 #ifndef UNUSED
@@ -14,6 +12,4 @@ extern "C" {
 #define UNUSED
 #endif
 
-#ifdef  __cplusplus
-}
-#endif
+} // namespace sslpkix

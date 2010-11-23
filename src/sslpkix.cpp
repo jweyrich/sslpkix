@@ -3,7 +3,9 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 
-bool sslpkix_startup(void) {
+namespace sslpkix {
+
+bool startup(void) {
 	CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
 	OpenSSL_add_all_algorithms();
 	ERR_load_crypto_strings();
@@ -11,7 +13,7 @@ bool sslpkix_startup(void) {
 	return true;
 }
 
-void sslpkix_shutdown(void) {
+void shutdown(void) {
 	X509V3_EXT_cleanup();
 	OBJ_cleanup();
 	ERR_free_strings(); // for ERR_load_crypto_strings
@@ -20,7 +22,7 @@ void sslpkix_shutdown(void) {
 	CRYPTO_cleanup_all_ex_data();
 }
 
-bool sslpkix_seed_prng(void) {
+bool seed_prng(void) {
 #if defined(__linux__)
 	// Stick to /dev/urandom on Linux, because /dev/random is blocking :-(
 	RAND_load_file("/dev/urandom", 1024);
@@ -30,11 +32,11 @@ bool sslpkix_seed_prng(void) {
 	return true;
 }
 
-void sslpkix_print_errors(FILE *file) {
+void print_errors(FILE *file) {
 	ERR_print_errors_fp(file);
 }
 
-bool sslpkix_add_custom_object(const char *oid, const char *sn, const char *ln) {
+bool add_custom_object(const char *oid, const char *sn, const char *ln) {
 	int nid = OBJ_create(oid, sn, ln);
 	if (nid == 0) {
 		std::cerr << "Error creating object: " << oid << " " << sn << " " << ln << std::endl;
@@ -43,3 +45,5 @@ bool sslpkix_add_custom_object(const char *oid, const char *sn, const char *ln) 
 	X509V3_EXT_add_alias(nid, NID_netscape_comment);
 	return true;
 }
+
+} // namespace sslpkix

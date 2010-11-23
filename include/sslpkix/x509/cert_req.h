@@ -4,6 +4,8 @@
 #include <iostream>
 #include <openssl/x509.h>
 
+namespace sslpkix {
+
 class CertificateRequest {
 public:
 	CertificateRequest() : _req(NULL) {
@@ -101,3 +103,5 @@ protected:
 	Key _pubkey;
 	CertificateName _subject;
 };
+
+} // namespace sslpkix

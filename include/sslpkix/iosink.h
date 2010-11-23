@@ -5,6 +5,8 @@
 #include <string>
 #include <openssl/bio.h>
 
+namespace sslpkix {
+
 class IoSink {
 public:
 	IoSink() : _bio(NULL) {
@@ -82,3 +84,5 @@ protected:
 	void *_buffer;
 	int _size;
 };
+
+} // namespace sslpkix

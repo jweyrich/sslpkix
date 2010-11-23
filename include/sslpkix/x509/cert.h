@@ -4,6 +4,8 @@
 #include <iostream>
 #include <openssl/x509v3.h>
 
+namespace sslpkix {
+
 class Certificate {
 public:
 	Certificate() : _cert(NULL) {
@@ -163,3 +165,5 @@ protected:
 	CertificateName _subject;
 	CertificateName _issuer;
 };
+
+} // namespace sslpkix
