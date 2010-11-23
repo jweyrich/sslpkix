@@ -1,0 +1,24 @@
+Copyright (c) 2010 Jardel Weyrich <jweyrich at gmail dot com>
+All rights reserved.
+
+DESCRIPTION
+-----------
+
+SSLPKIX is a simple C++ library for handling digital certificates.
+The library doesn't use exceptions under any circumstances.
+
+DEPENDENCIES
+------------
+
+• OpenSSL
+
+LICENSE
+-------
+
+This software is released under the Modified BSD License.
+
+ACKNOWLEDGMENTS
+---------------
+
+This product includes software developed by the OpenSSL Project
+for use in the OpenSSL Toolkit (http://www.openssl.org/)
