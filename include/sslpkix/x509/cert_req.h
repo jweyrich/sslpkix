@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cassert>
+//#include <cassert>
 #include <iostream>
 #include <openssl/x509.h>
 
@@ -14,7 +14,7 @@ public:
 		release();
 	}
 	X509_REQ *handle() {
-		assert(_req != NULL);
+		//assert(_req != NULL);
 		return _req;
 	}
 	bool create() {

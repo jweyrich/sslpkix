@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cassert>
+//#include <cassert>
 #include <iostream>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -17,7 +17,7 @@ public:
 		release();
 	}
 	EVP_PKEY *handle() {
-		assert(_key != NULL);
+		//assert(_key != NULL);
 		return _key;
 	}
 	bool create() {

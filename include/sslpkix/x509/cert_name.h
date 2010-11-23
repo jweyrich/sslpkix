@@ -1,5 +1,6 @@
 #pragma once
 
+//#include <cassert>
 #include <iostream>
 #include <string>
 #include <openssl/x509.h>
@@ -17,7 +18,7 @@ public:
 		release();
 	}
 	X509_NAME *handle() {
-		assert(_name != NULL);
+		//assert(_name != NULL);
 		return _name;
 	}
 	bool create() {

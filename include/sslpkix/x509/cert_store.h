@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cassert>
+//#include <cassert>
 #include <iostream>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
@@ -21,7 +21,7 @@ public:
 		release();
 	}
 	X509_STORE *handle() const {
-		assert(_store != NULL);
+		//assert(_store != NULL);
 		return _store;
 	}
 	bool create() {
@@ -72,7 +72,7 @@ public:
 		release();
 	}
 	X509_STORE_CTX *handle() {
-		assert(_ctx != NULL);
+		//assert(_ctx != NULL);
 		return _ctx;
 	}
 	bool create() {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cassert>
+//#include <cassert>
 #include <iostream>
 #include <string>
 #include <openssl/bio.h>
@@ -15,7 +15,7 @@ public:
 		release();
 	}
 	BIO *handle() {
-		assert(_bio != NULL);
+		//assert(_bio != NULL);
 		return _bio;
 	}
 	virtual void close() {
@@ -46,11 +46,9 @@ public:
 	virtual bool open(const char *filename, const char *mode) {
 		release();
 		_bio = BIO_new_file(filename, mode);
-		if (_bio == NULL) {
+		if (_bio == NULL)
 			std::cerr << "Failed to open file: " << filename << std::endl;
-		} else {
-			_filename = filename;
-		}
+		_filename = filename;
 		return _bio != NULL;
 	}
 	virtual const std::string source() const {
@@ -69,12 +67,10 @@ public:
 	virtual bool open(void *buffer, int size) {
 		release();
 		_bio = BIO_new_mem_buf(buffer, size);
-		if (_bio == NULL) {
+		if (_bio == NULL)
 			std::cerr << "Couldn't open memory BIO: " << buffer << std::endl;
-		} else {
-			_buffer = buffer;
-			_size = size;
-		}
+		_buffer = buffer;
+		_size = size;
 		return _bio != NULL;
 	}
 	virtual const std::string source() const {
