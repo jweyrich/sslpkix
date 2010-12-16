@@ -9,32 +9,33 @@ namespace sslpkix {
 
 class IoSink {
 public:
-	IoSink() : _bio(NULL) {
+	typedef BIO handle_type;
+	IoSink() : _handle(NULL) {
 	}
 	virtual ~IoSink() {
 		release();
 	}
-	BIO *handle() {
-		//assert(_bio != NULL);
-		return _bio;
+	handle_type *handle() {
+		//assert(_handle != NULL);
+		return _handle;
 	}
 	virtual void close() {
 		release();
 	}
 	bool is_open() {
-		return _bio != NULL;
+		return _handle != NULL;
 	}
 	virtual const std::string source() const {
 		return "<IoSink>";
 	}
 protected:
 	void release() {
-		if (_bio != NULL) {
-			BIO_free(_bio);
-			_bio = NULL;
+		if (_handle != NULL) {
+			BIO_free(_handle);
+			_handle = NULL;
 		}
 	}
-	BIO *_bio;
+	handle_type *_handle;
 };
 
 class FileSink : public IoSink {
@@ -45,11 +46,11 @@ public:
 	}
 	virtual bool open(const char *filename, const char *mode) {
 		release();
-		_bio = BIO_new_file(filename, mode);
-		if (_bio == NULL)
+		_handle = BIO_new_file(filename, mode);
+		if (_handle == NULL)
 			std::cerr << "Failed to open file: " << filename << std::endl;
 		_filename = filename;
-		return _bio != NULL;
+		return _handle != NULL;
 	}
 	virtual const std::string source() const {
 		return _filename;
@@ -66,12 +67,12 @@ public:
 	}
 	virtual bool open(void *buffer, int size) {
 		release();
-		_bio = BIO_new_mem_buf(buffer, size);
-		if (_bio == NULL)
+		_handle = BIO_new_mem_buf(buffer, size);
+		if (_handle == NULL)
 			std::cerr << "Couldn't open memory BIO: " << buffer << std::endl;
 		_buffer = buffer;
 		_size = size;
-		return _bio != NULL;
+		return _handle != NULL;
 	}
 	virtual const std::string source() const {
 		return "<MemorySink>";

@@ -10,7 +10,7 @@ The library doesn't use exceptions under any circumstances.
 DEPENDENCIES
 ------------
 
-• OpenSSL
+OpenSSL 0.9.8 or newer.
 
 LICENSE
 -------

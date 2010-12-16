@@ -11,24 +11,25 @@ namespace sslpkix {
 
 class Key {
 public:
-	Key() : _key(NULL), _is_extern(false) {
+	typedef EVP_PKEY handle_type;
+	Key() : _handle(NULL), _is_extern(false) {
 	}
 	virtual ~Key() {
 		release();
 	}
-	EVP_PKEY *handle() {
-		//assert(_key != NULL);
-		return _key;
+	handle_type *handle() {
+		//assert(_handle != NULL);
+		return _handle;
 	}
 	bool create() {
 		release();
-		_key = EVP_PKEY_new();
-		if (_key == NULL)
+		_handle = EVP_PKEY_new();
+		if (_handle == NULL)
 			std::cerr << "Failed to create key" << std::endl;
-		return _key != NULL;
+		return _handle != NULL;
 	}
 	bool assign(RSA *rsa) {
-		return EVP_PKEY_assign_RSA(_key, rsa) != 0;
+		return EVP_PKEY_assign_RSA(_handle, rsa) != 0;
 	}
 	virtual bool load(IoSink& sink UNUSED) {
 		return false;
@@ -38,18 +39,18 @@ public:
 	}
 protected:
 	void release() {
-		if (_key != NULL && !_is_extern) {
-			EVP_PKEY_free(_key);
-			_key = NULL;
+		if (_handle != NULL && !_is_extern) {
+			EVP_PKEY_free(_handle);
+			_handle = NULL;
 		}
 		_is_extern = false;
 	}
-	void set(EVP_PKEY *key) {
+	void set(handle_type * key) {
 		release();
-		_key = key;
+		_handle = key;
 		_is_extern = true;
 	}
-	EVP_PKEY *_key;
+	handle_type *_handle;
 	bool _is_extern;
 	friend class Certificate;
 	friend class CertificateRequest;
@@ -63,15 +64,15 @@ public:
 	}
 	virtual bool load(IoSink& sink, const char *password) {
 		release();
-		_key = PEM_read_bio_PrivateKey(sink.handle(), NULL, NULL, (void *)password);
-		if (_key == NULL)
+		_handle = PEM_read_bio_PrivateKey(sink.handle(), NULL, NULL, (void *)password);
+		if (_handle == NULL)
 			std::cerr << "Failed to load private key: " << sink.source() << std::endl;
-		return _key != NULL;
+		return _handle != NULL;
 	}
 	virtual bool save(IoSink& sink) {
-		if (_key == NULL)
+		if (_handle == NULL)
 			return false;
-		int ret = PEM_write_bio_PrivateKey(sink.handle(), _key, NULL, NULL, 0, 0, NULL);
+		int ret = PEM_write_bio_PrivateKey(sink.handle(), _handle, NULL, NULL, 0, 0, NULL);
 		if (ret == 0)
 			std::cerr << "Failed to save private key: " << sink.source() << std::endl;
 		return ret != 0;

@@ -15,19 +15,20 @@ namespace sslpkix {
 class CertificateStore {
 	// More info: http://www.umich.edu/~x509/ssleay/x509_store.html
 public:
-	CertificateStore() : _store(NULL) {
+	typedef X509_STORE handle_type;
+	CertificateStore() : _handle(NULL) {
 	}
 	~CertificateStore() {
 		release();
 	}
-	X509_STORE *handle() const {
-		//assert(_store != NULL);
-		return _store;
+	handle_type *handle() const {
+		//assert(_handle != NULL);
+		return _handle;
 	}
 	bool create() {
 		release();
-		_store = X509_STORE_new();
-		if (_store == NULL) {
+		_handle = X509_STORE_new();
+		if (_handle == NULL) {
 			std::cerr << "Failed to create certificate store" << std::endl;
 			return false;
 		}
@@ -38,47 +39,48 @@ public:
 		return true;
 	}
 	void set_flags(long flags) {
-		X509_STORE_set_flags(_store, flags);
+		X509_STORE_set_flags(_handle, flags);
 	}
 	/*
 	// More info: http://www.openssl.org/docs/crypto/X509_VERIFY_PARAM_set_flags.html
 	bool set_param() {
 		X509_VERIFY_PARAM *vpm = NULL;
 		if (vpm)
-			X509_STORE_set1_param(_store, vpm);
+			X509_STORE_set1_param(_handle, vpm);
 		if (vpm)
 			X509_VERIFY_PARAM_free(vpm);
 	}
 	*/
 	bool add_trusted_cert(Certificate& cert) {
-		int ret = X509_STORE_add_cert(_store, cert.handle());
+		int ret = X509_STORE_add_cert(_handle, cert.handle());
 		return ret != 0;
 	}
 protected:
 	void release() {
-		if (_store != NULL) {
-			X509_STORE_free(_store);
-			_store = NULL;
+		if (_handle != NULL) {
+			X509_STORE_free(_handle);
+			_handle = NULL;
 		}
 	}
-	X509_STORE *_store;
+	handle_type *_handle;
 };
 
 class CertificateStoreContext {
 public:
-	CertificateStoreContext() : _ctx(NULL) {
+	typedef X509_STORE_CTX handle_type;
+	CertificateStoreContext() : _handle(NULL) {
 	}
 	~CertificateStoreContext() {
 		release();
 	}
-	X509_STORE_CTX *handle() {
-		//assert(_ctx != NULL);
-		return _ctx;
+	handle_type *handle() {
+		//assert(_handle != NULL);
+		return _handle;
 	}
 	bool create() {
 		release();
-		_ctx = X509_STORE_CTX_new();
-		if (_ctx == NULL) {
+		_handle = X509_STORE_CTX_new();
+		if (_handle == NULL) {
 			std::cerr << "Failed to create certificate store context" << std::endl;
 			return false;
 		}
@@ -86,12 +88,12 @@ public:
 	}
 protected:
 	void release() {
-		if (_ctx != NULL) {
-			X509_STORE_CTX_free(_ctx);
-			_ctx = NULL;
+		if (_handle != NULL) {
+			X509_STORE_CTX_free(_handle);
+			_handle = NULL;
 		}
 	}
-	X509_STORE_CTX *_ctx;
+	handle_type *_handle;
 };
 
 class CertificateVerifier {
@@ -104,7 +106,7 @@ public:
 		unsigned long flags UNUSED,
 		int purpose)
 	{
-		X509_STORE_CTX *pctx = ctx.handle();
+		CertificateStoreContext::handle_type *pctx = ctx.handle();
 		int ret = X509_STORE_CTX_init(pctx, store.handle(), NULL, NULL);
 		if (!ret) {
 			std::cerr << "Failed to initialize certificate store context" << std::endl;

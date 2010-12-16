@@ -12,64 +12,65 @@ namespace sslpkix {
 class CertificateName {
 	// More info: http://www.umich.edu/~x509/ssleay/x509_name.html
 public:
-	CertificateName() : _name(NULL), _is_extern(false) {
+	typedef X509_NAME handle_type;
+	CertificateName() : _handle(NULL), _is_extern(false) {
 	}
 	~CertificateName() {
 		release();
 	}
-	X509_NAME *handle() {
-		//assert(_name != NULL);
-		return _name;
+	handle_type *handle() {
+		//assert(_handle != NULL);
+		return _handle;
 	}
 	bool create() {
 		release();
-		_name = X509_NAME_new();
-		if (_name == NULL)
+		_handle = X509_NAME_new();
+		if (_handle == NULL)
 			std::cerr << "Failed to create certificate name" << std::endl;
-		return _name != NULL;
+		return _handle != NULL;
 	}
 	/*
 	bool copy(CertificateName& name) {
 		// TODO(jweyrich): update the certificate pointer too? (check by printing the cert afterwards)
-		int ret = X509_NAME_set(&_name, name.handle());
+		int ret = X509_NAME_set(&_handle, name.handle());
 		if (ret == 0)
 			std::cerr << "Failed to copy certificate name" << std::endl;
 		return ret != 0;
 	}
 	*/
 	bool add_entry(int nid, const char *value) {
-		int ret = X509_NAME_add_entry_by_NID(_name, nid, MBSTRING_ASC,
+		int ret = X509_NAME_add_entry_by_NID(_handle, nid, MBSTRING_ASC,
 			(unsigned char *)value, -1, -1, 0);
 		if (ret == 0)
 			std::cerr << "Failed to add entry: " << nid << std::endl;
 		return ret != 0;
 	}
 	bool add_entry(const char *field, const char *value) {
-		int ret = X509_NAME_add_entry_by_txt(_name, field, MBSTRING_ASC,
+		int ret = X509_NAME_add_entry_by_txt(_handle, field, MBSTRING_ASC,
 			(const unsigned char *)value, -1, -1, 0);
 		if (ret == 0)
 			std::cerr << "Failed to add entry: " << field << std::endl;
 		return ret != 0;
 	}
 	int entry_count() const {
-		return X509_NAME_entry_count(_name);
+		return X509_NAME_entry_count(_handle);
 	}
 	int find_entry(int nid) const {
-		return X509_NAME_get_index_by_NID(_name, nid, -1);
+		return X509_NAME_get_index_by_NID(_handle, nid, -1);
 	}
 	X509_NAME_ENTRY *entry(int index) const {
-		return X509_NAME_get_entry(_name, index);
+		return X509_NAME_get_entry(_handle, index);
 	}
 	int entry_value(int nid, char *buffer, int size) const {
-		return X509_NAME_get_text_by_NID(_name, nid, buffer, size);
+		return X509_NAME_get_text_by_NID(_handle, nid, buffer, size);
 	}
 	std::string entry_value(int nid) const {
 		// TODO(jweyrich): should we use a fixed size to avoid performance penalty?
-		int size = X509_NAME_get_text_by_NID(_name, nid, NULL, 0);
+		int size = X509_NAME_get_text_by_NID(_handle, nid, NULL, 0);
 		if (size <= 0)
 			return "";
 		char *buffer = new char[size+1];
-		X509_NAME_get_text_by_NID(_name, nid, buffer, size+1);
+		X509_NAME_get_text_by_NID(_handle, nid, buffer, size+1);
 		std::string result;
 		result.assign(buffer);
 		delete [] buffer;
@@ -77,10 +78,10 @@ public:
 	}
 	std::string one_line() const {
 		char buffer[256];
-		return X509_NAME_oneline(_name, buffer, 256);
+		return X509_NAME_oneline(_handle, buffer, 256);
 	}
 	bool one_line_print(BIO *bio, int indent = 0) const {
-		int ret = X509_NAME_print(bio, _name, indent);
+		int ret = X509_NAME_print(bio, _handle, indent);
 		return ret != 0;
 	}
 	// Common entries
@@ -98,18 +99,18 @@ public:
 	bool set_email(const char *value) { return add_entry(NID_pkcs9_emailAddress, value); }
 protected:
 	void release() {
-		if (_name != NULL && !_is_extern) {
-			X509_NAME_free(_name);
-			_name = NULL;
+		if (_handle != NULL && !_is_extern) {
+			X509_NAME_free(_handle);
+			_handle = NULL;
 		}
 		_is_extern = false;
 	}
 	void set(X509_NAME *name) {
 		release();
-		_name = name;
+		_handle = name;
 		_is_extern = true;
 	}
-	X509_NAME *_name;
+	handle_type *_handle;
 	bool _is_extern;
 	friend class Certificate;
 	friend class CertificateRequest;
