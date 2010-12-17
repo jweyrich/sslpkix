@@ -105,9 +105,9 @@ protected:
 		}
 		_is_extern = false;
 	}
-	void set(X509_NAME *name) {
+	void set(handle_type *handle) {
 		release();
-		_handle = name;
+		_handle = handle;
 		_is_extern = true;
 	}
 	handle_type *_handle;

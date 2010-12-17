@@ -45,9 +45,9 @@ protected:
 		}
 		_is_extern = false;
 	}
-	void set(handle_type * key) {
+	void set(handle_type *handle) {
 		release();
-		_handle = key;
+		_handle = handle;
 		_is_extern = true;
 	}
 	handle_type *_handle;
