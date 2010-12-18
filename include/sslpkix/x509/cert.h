@@ -3,12 +3,15 @@
 //#include <cassert>
 #include <iostream>
 #include <openssl/x509v3.h>
+#include "sslpkix/x509/key.h"
+#include "sslpkix/x509/cert_name.h"
 
 namespace sslpkix {
 
 class Certificate {
 public:
 	typedef X509 handle_type;
+public:
 	Certificate() : _handle(NULL) {
 	}
 	virtual ~Certificate() {
@@ -161,6 +164,7 @@ protected:
 			_handle = NULL;
 		}
 	}
+protected:
 	handle_type *_handle;
 	Key _pubkey;
 	CertificateName _subject;

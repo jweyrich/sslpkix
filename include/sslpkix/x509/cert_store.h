@@ -16,6 +16,7 @@ class CertificateStore {
 	// More info: http://www.umich.edu/~x509/ssleay/x509_store.html
 public:
 	typedef X509_STORE handle_type;
+public:
 	CertificateStore() : _handle(NULL) {
 	}
 	~CertificateStore() {
@@ -62,12 +63,14 @@ protected:
 			_handle = NULL;
 		}
 	}
+protected:
 	handle_type *_handle;
 };
 
 class CertificateStoreContext {
 public:
 	typedef X509_STORE_CTX handle_type;
+public:
 	CertificateStoreContext() : _handle(NULL) {
 	}
 	~CertificateStoreContext() {
@@ -93,6 +96,7 @@ protected:
 			_handle = NULL;
 		}
 	}
+protected:
 	handle_type *_handle;
 };
 

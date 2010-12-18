@@ -13,6 +13,7 @@ class CertificateName {
 	// More info: http://www.umich.edu/~x509/ssleay/x509_name.html
 public:
 	typedef X509_NAME handle_type;
+public:
 	CertificateName() : _handle(NULL), _is_extern(false) {
 	}
 	~CertificateName() {
@@ -110,6 +111,7 @@ protected:
 		_handle = handle;
 		_is_extern = true;
 	}
+protected:
 	handle_type *_handle;
 	bool _is_extern;
 	friend class Certificate;

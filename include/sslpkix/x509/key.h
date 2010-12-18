@@ -12,6 +12,7 @@ namespace sslpkix {
 class Key {
 public:
 	typedef EVP_PKEY handle_type;
+public:
 	Key() : _handle(NULL), _is_extern(false) {
 	}
 	virtual ~Key() {
@@ -50,6 +51,7 @@ protected:
 		_handle = handle;
 		_is_extern = true;
 	}
+protected:
 	handle_type *_handle;
 	bool _is_extern;
 	friend class Certificate;

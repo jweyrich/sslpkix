@@ -10,6 +10,7 @@ namespace sslpkix {
 class IoSink {
 public:
 	typedef BIO handle_type;
+public:
 	IoSink() : _handle(NULL) {
 	}
 	virtual ~IoSink() {
@@ -35,6 +36,7 @@ protected:
 			_handle = NULL;
 		}
 	}
+protected:
 	handle_type *_handle;
 };
 
