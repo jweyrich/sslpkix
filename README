@@ -3,8 +3,7 @@ All rights reserved.
 
 DESCRIPTION
 -----------
-
-SSLPKIX is a simple C++ library for handling digital certificates.
+SSLPKIX is a simple C++ wrapper for handling digital certificates using OpenSSL.
 The library doesn't use exceptions under any circumstances.
 
 DEPENDENCIES
