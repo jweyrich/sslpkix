@@ -7,7 +7,7 @@
 
 namespace sslpkix {
 
-// TODO(jweyrich): implement X509_NAME_dup, X509_NAME_cmp, X509_NAME_hash, X509_NAME_delete_entry
+// TODO(jweyrich): implement X509_NAME_dup, X509_NAME_hash, X509_NAME_delete_entry
 
 class CertificateName {
 	// More info: http://www.umich.edu/~x509/ssleay/x509_name.html
@@ -98,6 +98,8 @@ public:
 	bool set_organization(const char *value) { return add_entry(NID_organizationName, value); }
 	bool set_common_name(const char *value) { return add_entry(NID_commonName, value); }
 	bool set_email(const char *value) { return add_entry(NID_pkcs9_emailAddress, value); }
+	friend bool operator==(const CertificateName& lhs, const CertificateName& rhs);
+	friend bool operator!=(const CertificateName& lhs, const CertificateName& rhs);
 protected:
 	void release() {
 		if (_handle != NULL && !_is_extern) {
@@ -117,5 +119,12 @@ protected:
 	friend class Certificate;
 	friend class CertificateRequest;
 };
+
+bool operator==(const CertificateName& lhs, const CertificateName& rhs) {
+	return X509_NAME_cmp(lhs._handle, rhs._handle) == 0;
+}
+bool operator!=(const CertificateName& lhs, const CertificateName& rhs) {
+	return !(lhs == rhs);
+}
 
 } // namespace sslpkix

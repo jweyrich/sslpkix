@@ -157,6 +157,8 @@ public:
 		}
 		return true;
 	}
+	friend bool operator==(const Certificate& lhs, const Certificate& rhs);
+	friend bool operator!=(const Certificate& lhs, const Certificate& rhs);
 protected:
 	void release() {
 		if (_handle != NULL) {
@@ -170,5 +172,14 @@ protected:
 	CertificateName _subject;
 	CertificateName _issuer;
 };
+
+bool operator==(const Certificate& lhs, const Certificate& rhs) {
+	return X509_cmp(lhs._handle, rhs._handle) == 0 &&
+		lhs._subject == rhs._subject &&
+		lhs._issuer == rhs._issuer;
+}
+bool operator!=(const Certificate& lhs, const Certificate& rhs) {
+	return !(lhs == rhs);
+}
 
 } // namespace sslpkix
