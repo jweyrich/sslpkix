@@ -44,8 +44,8 @@ protected:
 	void release() {
 		if (_handle != NULL && !_is_external_handle) {
 			EVP_PKEY_free(_handle);
-			_handle = NULL;
 		}
+		_handle = NULL;
 		_is_external_handle = false;
 	}
 	void set(handle_type *handle) {

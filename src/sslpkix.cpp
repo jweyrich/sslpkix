@@ -7,7 +7,7 @@ namespace sslpkix {
 
 bool startup(void) {
 	CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
-	OpenSSL_add_all_algorithms();
+	OpenSSL_add_all_algorithms(); // Add all cipher and digest algorithms
 	ERR_load_crypto_strings();
 	//ERR_load_OBJ_strings();
 	return true;
