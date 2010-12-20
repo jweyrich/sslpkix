@@ -108,7 +108,7 @@ protected:
 		_handle = NULL;
 		_is_external_handle = false;
 	}
-	void set(handle_type *handle) {
+	void set_handle(handle_type *handle) {
 		release();
 		_handle = handle;
 		_is_external_handle = true;

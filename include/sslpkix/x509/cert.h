@@ -12,7 +12,7 @@ class Certificate {
 public:
 	typedef X509 handle_type;
 public:
-	Certificate() : _handle(NULL) {
+	Certificate() : _handle(NULL), _version(0), _serial(0) {
 	}
 	virtual ~Certificate() {
 		release();
@@ -26,25 +26,30 @@ public:
 		_handle = X509_new();
 		if (_handle == NULL) {
 			std::cerr << "Failed to create certificate" << std::endl;
-		} else {
-			_subject.set(X509_get_subject_name(_handle));
-			_issuer.set(X509_get_issuer_name(_handle));
+			return false;
 		}
-		return _handle != NULL;
+		reload_data();
+		return true;
 	}
 	bool set_version(long version) {
 		int ret = X509_set_version(_handle, version);
-		return ret != 0;
+		if (ret == 0) {
+			std::cerr << "Failed to set version" << std::endl;
+			return false;
+		}
+		_version = version;
+		return true;
 	}
 	long version() const {
-		return X509_get_version(_handle);
+		return _version;
 	}
 	bool set_serial(long serial) {
 		ASN1_INTEGER_set(X509_get_serialNumber(_handle), serial);
+		_serial = serial;
 		return true;
 	}
 	long serial() const {
-		return ASN1_INTEGER_get(X509_get_serialNumber(_handle));
+		return _serial;
 	}
 	bool set_valid_since(int days) {
 		X509_gmtime_adj(X509_get_notBefore(_handle), (long)60 * 60 * 24 * days);
@@ -55,21 +60,15 @@ public:
 		return true;
 	}
 	bool set_pubkey(Key& key) {
-		// update local
-		_pubkey.set(key.handle());
-		// update certificate
 		int ret = X509_set_pubkey(_handle, key.handle());
 		if (ret == 0) {
 			std::cerr << "Failed to set public key" << std::endl;
 			return false;
 		}
-		_subject.set(X509_get_subject_name(_handle));
-		_issuer.set(X509_get_issuer_name(_handle));
+		_pubkey.set_handle(key.handle());
 		return true;
 	}
 	Key& pubkey() {
-		// update local
-		_pubkey.set(X509_get_pubkey(_handle));
 		return _pubkey;
 	}
 	bool sign(PrivateKey& key) {
@@ -110,30 +109,26 @@ public:
 		return true;
 	}
 	bool set_subject(CertificateName& subject) {
-		// update certificate
 		X509_set_subject_name(_handle, subject.handle());
-		// update local
-		_subject.set(X509_get_subject_name(_handle));
+		_subject.set_handle(X509_get_subject_name(_handle));
 		return true;
 	}
 	CertificateName& subject() {
 		return _subject;
 	}
 	bool set_issuer(CertificateName& issuer) {
-		// update certificate
 		X509_set_issuer_name(_handle, issuer.handle());
-		// update local
-		_issuer.set(X509_get_issuer_name(_handle));
+		_issuer.set_handle(X509_get_issuer_name(_handle));
 		return true;
 	}
 	CertificateName& issuer() {
 		return _issuer;
 	}
-	bool verify(PrivateKey& key) { // TODO(jweyrich): should be a const method?
+	bool verify_signature(Key& key) const {
 		int ret = X509_verify(_handle, key.handle());
 		return ret != 0;
 	}
-	bool check_private_key(PrivateKey& key) { // TODO(jweyrich): should be a const method?
+	bool check_private_key(PrivateKey& key) const {
 		int ret = X509_check_private_key(_handle, key.handle());
 		return ret != 0;
 	}
@@ -144,8 +139,7 @@ public:
 			std::cerr << "Failed to load certificate: " << sink.source() << std::endl;
 			return false;
 		}
-		_subject.set(X509_get_subject_name(_handle));
-		_issuer.set(X509_get_issuer_name(_handle));
+		reload_data();
 		return true;
 	}
 	virtual bool save(IoSink& sink) const {
@@ -166,8 +160,17 @@ protected:
 			_handle = NULL;
 		}
 	}
+	void reload_data() {
+		_version = X509_get_version(_handle);
+		_serial = ASN1_INTEGER_get(X509_get_serialNumber(_handle));
+		_pubkey.set_handle(X509_get_pubkey(_handle));
+		_subject.set_handle(X509_get_subject_name(_handle));
+		_issuer.set_handle(X509_get_issuer_name(_handle));
+	}
 protected:
 	handle_type *_handle;
+	long _version;
+	long _serial;
 	Key _pubkey;
 	CertificateName _subject;
 	CertificateName _issuer;

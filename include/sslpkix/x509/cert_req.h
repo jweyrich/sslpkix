@@ -12,7 +12,7 @@ class CertificateRequest {
 public:
 	typedef X509_REQ handle_type;
 public:
-	CertificateRequest() : _handle(NULL) {
+	CertificateRequest() : _handle(NULL), _version(0) {
 	}
 	virtual ~CertificateRequest() {
 		release();
@@ -24,29 +24,35 @@ public:
 	bool create() {
 		release();
 		_handle = X509_REQ_new();
-		if (_handle == NULL)
+		if (_handle == NULL) {
 			std::cerr << "Failed to create cerificate request" << std::endl;
-		return _handle != NULL;
+			return false;
+		}
+		reload_data();
+		return true;
 	}
 	bool set_version(long version) {
 		int ret = X509_REQ_set_version(_handle, version);
-		return ret != 0;
+		if (ret == 0) {
+			std::cerr << "Failed to set version" << std::endl;
+			return false;
+		}
+		_version = version;
+		return true;
 	}
 	long version() const {
-		return X509_REQ_get_version(_handle);
+		return _version;
 	}
 	bool set_pubkey(Key& key) {
-		// update local
-		_pubkey.set(key.handle());
-		// update certificate
 		int ret = X509_REQ_set_pubkey(_handle, key.handle());
-		if (ret == 0)
+		if (ret == 0) {
 			std::cerr << "Failed to set public key" << std::endl;
-		return ret != 0;
+			return false;
+		}
+		_pubkey.set_handle(key.handle());
+		return true;
 	}
 	Key& pubkey() {
-		// update local
-		_pubkey.set(X509_REQ_get_pubkey(_handle));
 		return _pubkey;
 	}
 	bool sign(PrivateKey& key) {
@@ -61,18 +67,14 @@ public:
 		return true;
 	}
 	bool set_subject(CertificateName& subject) {
-		// update local
-		_subject.set(subject.handle());
-		// update certificate
 		X509_REQ_set_subject_name(_handle, subject.handle());
+		_subject.set_handle(X509_REQ_get_subject_name(_handle));
 		return true;
 	}
 	CertificateName& subject() {
-		// update local
-		_subject.set(X509_REQ_get_subject_name(_handle));
 		return _subject;
 	}
-	bool verify(PrivateKey& key) {
+	bool verify_signature(Key& key) const {
 		int ret = X509_REQ_verify(_handle, key.handle());
 		return ret != 0;
 	}
@@ -83,9 +85,12 @@ public:
 	virtual bool load(IoSink& sink) {
 		release();
 		_handle = PEM_read_bio_X509_REQ(sink.handle(), NULL, NULL, NULL);
-		if (_handle == NULL)
+		if (_handle == NULL) {
 			std::cerr << "Failed to load certificate request: " << sink.source() << std::endl;
-		return _handle != NULL;
+			return false;
+		}
+		reload_data();
+		return true;
 	}
 	virtual bool save(IoSink& sink) const {
 		if (_handle == NULL)
@@ -103,8 +108,15 @@ protected:
 			_handle = NULL;
 		}
 	}
+	void reload_data() {
+		_version = X509_REQ_get_version(_handle);
+		_pubkey.set_handle(X509_REQ_get_pubkey(_handle));
+		_subject.set_handle(X509_REQ_get_subject_name(_handle));
+	}
 protected:
 	handle_type *_handle;
+	long _version;
+	long _serial;
 	Key _pubkey;
 	CertificateName _subject;
 };
