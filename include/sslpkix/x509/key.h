@@ -12,6 +12,21 @@ namespace sslpkix {
 class Key {
 public:
 	typedef EVP_PKEY handle_type;
+	typedef enum {
+		TYPE_UNKNOWN = 0,
+		#ifndef OPENSSL_NO_RSA
+		TYPE_RSA = 1,
+		#endif
+		#ifndef OPENSSL_NO_DSA
+		TYPE_DSA = 2,
+		#endif
+		#ifndef OPENSSL_NO_DH
+		TYPE_DH = 3, // Diffie Hellman
+		#endif
+		#ifndef OPENSSL_NO_EC
+		TYPE_EC = 4,
+		#endif
+	} type_e;
 public:
 	Key() : _handle(NULL), _is_external_handle(false) {
 	}
@@ -29,9 +44,56 @@ public:
 			std::cerr << "Failed to create key" << std::endl;
 		return _handle != NULL;
 	}
-	bool assign(RSA *rsa) {
-		return EVP_PKEY_assign_RSA(_handle, rsa) != 0;
+	type_e type() const {
+		int type = EVP_PKEY_type(_handle->type);
+		switch (type) {
+			#ifndef OPENSSL_NO_RSA
+			case EVP_PKEY_RSA: return TYPE_RSA;
+			#endif
+			#ifndef OPENSSL_NO_DSA
+			case EVP_PKEY_DSA: return TYPE_DSA;
+			#endif
+			#ifndef OPENSSL_NO_DH
+			case EVP_PKEY_DH: return TYPE_DH;
+			#endif
+			#ifndef OPENSSL_NO_EC
+			case EVP_PKEY_EC: return TYPE_EC;
+			#endif
+			default: return TYPE_UNKNOWN;
+		}
 	}
+	#ifndef OPENSSL_NO_RSA
+	bool assign(RSA *key) {
+		return EVP_PKEY_assign_RSA(_handle, key) != 0;
+	}
+	bool copy(RSA *key) {
+		return EVP_PKEY_set1_RSA(_handle, key) != 0;
+	}
+	#endif
+	#ifndef OPENSSL_NO_DSA
+	bool assign(DSA *key) {
+		return EVP_PKEY_assign_DSA(_handle, key) != 0;
+	}
+	bool copy(DSA *key) {
+		return EVP_PKEY_set1_DSA(_handle, key) != 0;
+	}
+	#endif
+	#ifndef OPENSSL_NO_DH
+	bool assign(DH *key) {
+		return EVP_PKEY_assign_DH(_handle, key) != 0;
+	}
+	bool copy(DH *key) {
+		return EVP_PKEY_set1_DH(_handle, key) != 0;
+	}
+	#endif
+	#ifndef OPENSSL_NO_EC
+	bool assign(EC_KEY *key) {
+		return EVP_PKEY_assign_EC_KEY(_handle, key) != 0;
+	}
+	bool copy(EC_KEY *key) {
+		return EVP_PKEY_set1_EC_KEY(_handle, key) != 0;
+	}
+	#endif
 	virtual bool load(IoSink& sink UNUSED) {
 		return false;
 	}
@@ -59,14 +121,6 @@ protected:
 	friend class Certificate;
 	friend class CertificateRequest;
 };
-
-bool operator==(const Key& lhs, const Key& rhs) {
-	// TODO(jweyrich): do we need EVP_PKEY_cmp_parameters() too?
-	return EVP_PKEY_cmp(lhs._handle, rhs._handle) == 1;
-}
-bool operator!=(const Key& lhs, const Key& rhs) {
-	return !(lhs == rhs);
-}
 
 class PrivateKey : public Key {
 public:

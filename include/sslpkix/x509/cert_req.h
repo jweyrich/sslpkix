@@ -3,6 +3,7 @@
 //#include <cassert>
 #include <iostream>
 #include <openssl/x509.h>
+#include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
 
@@ -55,8 +56,8 @@ public:
 	Key& pubkey() {
 		return _pubkey;
 	}
-	bool sign(PrivateKey& key) {
-		if (!X509_REQ_sign(_handle, key.handle(), EVP_sha1())) {
+	bool sign(PrivateKey& key, Digest::type_e digest = Digest::TYPE_SHA1) {
+		if (!X509_REQ_sign(_handle, key.handle(), Digest::get(digest))) {
 			std::cerr << "Failed to sign" << std::endl;
 			return false;
 		}

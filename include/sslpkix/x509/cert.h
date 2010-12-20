@@ -3,6 +3,7 @@
 //#include <cassert>
 #include <iostream>
 #include <openssl/x509v3.h>
+#include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
 
@@ -71,8 +72,8 @@ public:
 	Key& pubkey() {
 		return _pubkey;
 	}
-	bool sign(PrivateKey& key) {
-		if (!X509_sign(_handle, key.handle(), EVP_sha1())) {
+	bool sign(PrivateKey& key, Digest::type_e digest = Digest::TYPE_SHA1) {
+		if (!X509_sign(_handle, key.handle(), Digest::get(digest))) {
 			std::cerr << "Failed to sign" << std::endl;
 			return false;
 		}
@@ -175,14 +176,5 @@ protected:
 	CertificateName _subject;
 	CertificateName _issuer;
 };
-
-bool operator==(const Certificate& lhs, const Certificate& rhs) {
-	return X509_cmp(lhs._handle, rhs._handle) == 0 &&
-		lhs._subject == rhs._subject &&
-		lhs._issuer == rhs._issuer;
-}
-bool operator!=(const Certificate& lhs, const Certificate& rhs) {
-	return !(lhs == rhs);
-}
 
 } // namespace sslpkix

@@ -1,11 +1,12 @@
 #pragma once
 
 #include "sslpkix/iosink.h"
-#include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
 #include "sslpkix/x509/cert.h"
 #include "sslpkix/x509/cert_req.h"
 #include "sslpkix/x509/cert_store.h"
+#include "sslpkix/x509/digest.h"
+#include "sslpkix/x509/key.h"
 
 namespace sslpkix {
 

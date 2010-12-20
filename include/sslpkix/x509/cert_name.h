@@ -120,11 +120,4 @@ protected:
 	friend class CertificateRequest;
 };
 
-bool operator==(const CertificateName& lhs, const CertificateName& rhs) {
-	return X509_NAME_cmp(lhs._handle, rhs._handle) == 0;
-}
-bool operator!=(const CertificateName& lhs, const CertificateName& rhs) {
-	return !(lhs == rhs);
-}
-
 } // namespace sslpkix
