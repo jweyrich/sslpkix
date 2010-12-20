@@ -14,7 +14,7 @@ class CertificateName {
 public:
 	typedef X509_NAME handle_type;
 public:
-	CertificateName() : _handle(NULL), _is_extern(false) {
+	CertificateName() : _handle(NULL), _is_external_handle(false) {
 	}
 	~CertificateName() {
 		release();
@@ -102,20 +102,20 @@ public:
 	friend bool operator!=(const CertificateName& lhs, const CertificateName& rhs);
 protected:
 	void release() {
-		if (_handle != NULL && !_is_extern) {
+		if (_handle != NULL && !_is_external_handle) {
 			X509_NAME_free(_handle);
 			_handle = NULL;
 		}
-		_is_extern = false;
+		_is_external_handle = false;
 	}
 	void set(handle_type *handle) {
 		release();
 		_handle = handle;
-		_is_extern = true;
+		_is_external_handle = true;
 	}
 protected:
 	handle_type *_handle;
-	bool _is_extern;
+	bool _is_external_handle;
 	friend class Certificate;
 	friend class CertificateRequest;
 };

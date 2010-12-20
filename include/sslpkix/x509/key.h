@@ -13,7 +13,7 @@ class Key {
 public:
 	typedef EVP_PKEY handle_type;
 public:
-	Key() : _handle(NULL), _is_extern(false) {
+	Key() : _handle(NULL), _is_external_handle(false) {
 	}
 	virtual ~Key() {
 		release();
@@ -42,20 +42,20 @@ public:
 	friend bool operator!=(const Key& lhs, const Key& rhs);
 protected:
 	void release() {
-		if (_handle != NULL && !_is_extern) {
+		if (_handle != NULL && !_is_external_handle) {
 			EVP_PKEY_free(_handle);
 			_handle = NULL;
 		}
-		_is_extern = false;
+		_is_external_handle = false;
 	}
 	void set(handle_type *handle) {
 		release();
 		_handle = handle;
-		_is_extern = true;
+		_is_external_handle = true;
 	}
 protected:
 	handle_type *_handle;
-	bool _is_extern;
+	bool _is_external_handle;
 	friend class Certificate;
 	friend class CertificateRequest;
 };
