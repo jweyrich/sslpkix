@@ -63,7 +63,7 @@ protected:
 
 class MemorySink : public IoSink {
 public:
-	MemorySink() {
+	MemorySink() : _buffer(NULL), _size(0) {
 	}
 	~MemorySink() {
 	}
