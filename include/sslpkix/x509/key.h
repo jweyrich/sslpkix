@@ -101,8 +101,13 @@ public:
 	virtual bool save(IoSink& sink UNUSED) const {
 		return false;
 	}
-	friend bool operator==(const Key& lhs, const Key& rhs);
-	friend bool operator!=(const Key& lhs, const Key& rhs);
+	friend bool operator==(const Key& lhs, const Key& rhs) {
+		// TODO(jweyrich): do we need EVP_PKEY_cmp_parameters() too?
+		return EVP_PKEY_cmp(lhs._handle, rhs._handle) == 1;
+	}
+	friend bool operator!=(const Key& lhs, const Key& rhs) {
+		return !(lhs == rhs);
+	}
 protected:
 	void release() {
 		if (_handle != NULL && !_is_external_handle) {

@@ -99,8 +99,12 @@ public:
 	bool set_organization(const char *value) { return add_entry(NID_organizationName, value); }
 	bool set_common_name(const char *value) { return add_entry(NID_commonName, value); }
 	bool set_email(const char *value) { return add_entry(NID_pkcs9_emailAddress, value); }
-	friend bool operator==(const CertificateName& lhs, const CertificateName& rhs);
-	friend bool operator!=(const CertificateName& lhs, const CertificateName& rhs);
+	friend bool operator==(const CertificateName& lhs, const CertificateName& rhs) {
+		return X509_NAME_cmp(lhs._handle, rhs._handle) == 0;
+	}
+	friend bool operator!=(const CertificateName& lhs, const CertificateName& rhs) {
+		return !(lhs == rhs);
+	}
 protected:
 	void release() {
 		if (_handle != NULL && !_is_external_handle) {
