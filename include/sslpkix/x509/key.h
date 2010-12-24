@@ -6,10 +6,11 @@
 #include <openssl/pem.h>
 #include "sslpkix/iosink.h"
 #include "sslpkix/common.h"
+#include "sslpkix/non_copyable.h"
 
 namespace sslpkix {
 
-class Key {
+class Key : non_copyable {
 public:
 	typedef EVP_PKEY handle_type;
 	typedef enum {
@@ -115,9 +116,6 @@ protected:
 		_handle = handle;
 		_is_external_handle = true;
 	}
-private:
-	Key(const Key&);
-	Key& operator=(const Key&);
 protected:
 	handle_type *_handle;
 	bool _is_external_handle;

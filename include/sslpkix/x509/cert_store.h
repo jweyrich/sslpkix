@@ -6,13 +6,14 @@
 #include <openssl/x509_vfy.h>
 #include "sslpkix/x509/cert.h"
 #include "sslpkix/common.h"
+#include "sslpkix/non_copyable.h"
 #if 0
 #include "sslpkix/openssl/apps/verify.h"
 #endif
 
 namespace sslpkix {
 
-class CertificateStore {
+class CertificateStore : non_copyable  {
 	// More info: http://www.umich.edu/~x509/ssleay/x509_store.html
 public:
 	typedef X509_STORE handle_type;
@@ -63,14 +64,11 @@ protected:
 			_handle = NULL;
 		}
 	}
-private:
-	CertificateStore(const CertificateStore&);
-	CertificateStore& operator=(const CertificateStore&);
 protected:
 	handle_type *_handle;
 };
 
-class CertificateStoreContext {
+class CertificateStoreContext : non_copyable  {
 public:
 	typedef X509_STORE_CTX handle_type;
 public:
@@ -99,9 +97,6 @@ protected:
 			_handle = NULL;
 		}
 	}
-private:
-	CertificateStoreContext(const CertificateStoreContext&);
-	CertificateStoreContext& operator=(const CertificateStoreContext&);
 protected:
 	handle_type *_handle;
 };

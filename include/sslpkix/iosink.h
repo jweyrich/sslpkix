@@ -4,10 +4,11 @@
 #include <iostream>
 #include <string>
 #include <openssl/bio.h>
+#include "sslpkix/non_copyable.h"
 
 namespace sslpkix {
 
-class IoSink {
+class IoSink : non_copyable {
 public:
 	typedef BIO handle_type;
 public:
@@ -36,9 +37,6 @@ protected:
 			_handle = NULL;
 		}
 	}
-private:
-	IoSink(const IoSink&);
-	IoSink& operator=(const IoSink&);
 protected:
 	handle_type *_handle;
 };

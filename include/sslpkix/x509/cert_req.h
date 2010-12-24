@@ -6,10 +6,11 @@
 #include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
+#include "sslpkix/non_copyable.h"
 
 namespace sslpkix {
 
-class CertificateRequest {
+class CertificateRequest : non_copyable {
 public:
 	typedef X509_REQ handle_type;
 public:

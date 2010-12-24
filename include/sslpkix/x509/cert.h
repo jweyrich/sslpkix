@@ -6,10 +6,11 @@
 #include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
+#include "sslpkix/non_copyable.h"
 
 namespace sslpkix {
 
-class Certificate {
+class Certificate : non_copyable {
 public:
 	typedef X509 handle_type;
 public:
@@ -168,9 +169,6 @@ protected:
 		_subject.set_handle(X509_get_subject_name(_handle));
 		_issuer.set_handle(X509_get_issuer_name(_handle));
 	}
-private:
-	Certificate(const Certificate&);
-	Certificate& operator=(const Certificate&);
 protected:
 	handle_type *_handle;
 	long _version;
