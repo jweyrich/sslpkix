@@ -168,6 +168,9 @@ protected:
 		_subject.set_handle(X509_get_subject_name(_handle));
 		_issuer.set_handle(X509_get_issuer_name(_handle));
 	}
+private:
+	Certificate(const Certificate&);
+	Certificate& operator=(const Certificate&);
 protected:
 	handle_type *_handle;
 	long _version;

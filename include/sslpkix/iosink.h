@@ -36,6 +36,9 @@ protected:
 			_handle = NULL;
 		}
 	}
+private:
+	IoSink(const IoSink&);
+	IoSink& operator=(const IoSink&);
 protected:
 	handle_type *_handle;
 };

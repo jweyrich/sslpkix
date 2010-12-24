@@ -63,6 +63,9 @@ protected:
 			_handle = NULL;
 		}
 	}
+private:
+	CertificateStore(const CertificateStore&);
+	CertificateStore& operator=(const CertificateStore&);
 protected:
 	handle_type *_handle;
 };
@@ -96,6 +99,9 @@ protected:
 			_handle = NULL;
 		}
 	}
+private:
+	CertificateStoreContext(const CertificateStoreContext&);
+	CertificateStoreContext& operator=(const CertificateStoreContext&);
 protected:
 	handle_type *_handle;
 };

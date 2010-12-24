@@ -113,6 +113,9 @@ protected:
 		_handle = handle;
 		_is_external_handle = true;
 	}
+private:
+	CertificateName(const CertificateName&);
+	CertificateName& operator=(const CertificateName&);
 protected:
 	handle_type *_handle;
 	bool _is_external_handle;

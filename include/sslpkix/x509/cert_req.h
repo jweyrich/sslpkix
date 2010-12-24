@@ -114,6 +114,9 @@ protected:
 		_pubkey.set_handle(X509_REQ_get_pubkey(_handle));
 		_subject.set_handle(X509_REQ_get_subject_name(_handle));
 	}
+private:
+	CertificateRequest(const CertificateRequest&);
+	CertificateRequest& operator=(const CertificateRequest&);
 protected:
 	handle_type *_handle;
 	long _version;

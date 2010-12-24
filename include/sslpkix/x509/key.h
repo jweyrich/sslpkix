@@ -115,6 +115,9 @@ protected:
 		_handle = handle;
 		_is_external_handle = true;
 	}
+private:
+	Key(const Key&);
+	Key& operator=(const Key&);
 protected:
 	handle_type *_handle;
 	bool _is_external_handle;
