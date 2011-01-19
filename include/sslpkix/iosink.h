@@ -45,8 +45,6 @@ class FileSink : public IoSink {
 public:
 	FileSink() {
 	}
-	~FileSink() {
-	}
 	virtual bool open(const char *filename, const char *mode) {
 		release();
 		_handle = BIO_new_file(filename, mode);
@@ -66,13 +64,11 @@ class MemorySink : public IoSink {
 public:
 	MemorySink() : _buffer(NULL), _size(0) {
 	}
-	~MemorySink() {
-	}
 	virtual bool open(void *buffer, int size) {
 		release();
 		_handle = BIO_new_mem_buf(buffer, size);
 		if (_handle == NULL)
-			std::cerr << "Couldn't open memory BIO: " << buffer << std::endl;
+			std::cerr << "Failed to create memory BIO: " << buffer << std::endl;
 		_buffer = buffer;
 		_size = size;
 		return _handle != NULL;

@@ -36,7 +36,7 @@ MKDIR			= mkdir -p
 ####### Files
 
 # Don't use := on recursively-expanding variable
-SOURCE_DIRS		= . openssl/apps
+SOURCE_DIRS		= . openssl/apps x509
 SOURCE_FILTER	= $(wildcard $(dir)/*.cpp) $(wildcard $(dir)/*.c)
 SOURCES			= $(foreach dir, $(SOURCE_DIRS), $(SOURCE_FILTER))
 OBJECTS			= $(addprefix $(OBJECTS_DIR)/, $(addsuffix .o, $(basename ${SOURCES})))
