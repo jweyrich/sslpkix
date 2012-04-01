@@ -24,7 +24,7 @@ public:
 	virtual void close() {
 		release();
 	}
-	bool is_open() {
+	bool is_open() const {
 		return _handle != NULL;
 	}
 	virtual const std::string source() const {
