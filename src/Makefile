@@ -8,8 +8,8 @@ PLATFORM_ARCH := $(shell uname -p)
 CC				= gcc
 CXX				= g++
 DEFINES			= -DDEBUG
-CFLAGS			= -pipe -O0 -g3 -Wall -Wextra -rdynamic -fmessage-length=0 $(DEFINES)
-CXXFLAGS		= -pipe -O0 -g3 -Wall -Wextra -rdynamic -fmessage-length=0 $(DEFINES)
+CFLAGS			= -pipe -O0 -g3 -Wall -Wextra -pedantic -rdynamic -fmessage-length=0 $(DEFINES)
+CXXFLAGS		= -pipe -O0 -g3 -Wall -Wextra -pedantic -rdynamic -fmessage-length=0 $(DEFINES)
 INCPATH			= -I../include
 LINK			= g++
 LFLAGS			=

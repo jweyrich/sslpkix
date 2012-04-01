@@ -14,7 +14,6 @@ class Key : non_copyable {
 public:
 	typedef EVP_PKEY handle_type;
 	typedef enum {
-		TYPE_UNKNOWN = 0,
 		#ifndef OPENSSL_NO_RSA
 		TYPE_RSA = 1,
 		#endif
@@ -27,6 +26,7 @@ public:
 		#ifndef OPENSSL_NO_EC
 		TYPE_EC = 4,
 		#endif
+		TYPE_UNKNOWN = 0
 	} type_e;
 public:
 	Key() : _handle(NULL), _is_external_handle(false) {

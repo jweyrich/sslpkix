@@ -8,7 +8,6 @@ class Digest {
 public:
 	typedef EVP_MD handle_type;
 	typedef enum {
-		TYPE_NULL = 0,
 		#ifndef OPENSSL_NO_MD2
 		TYPE_MD2 = 1,
 		#endif
@@ -39,6 +38,7 @@ public:
 		#ifndef OPENSSL_NO_RIPEMD
 		TYPE_RIPEMD160 = 14,
 		#endif
+		TYPE_NULL = 0
 	} type_e;
 public:
 	static const handle_type *get(const char *name) {
