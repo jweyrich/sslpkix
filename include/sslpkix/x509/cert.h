@@ -13,8 +13,14 @@ namespace sslpkix {
 class Certificate : non_copyable {
 public:
 	typedef X509 handle_type;
+	struct Version {
+		enum EnumType {
+			v2 = 2,
+			v3 = 3
+		};
+	};
 public:
-	Certificate() : _handle(NULL), _version(0), _serial(0) {
+	Certificate() : _handle(NULL), _version(Version::v3), _serial(0) {
 	}
 	virtual ~Certificate() {
 		release();
@@ -33,8 +39,8 @@ public:
 		reload_data();
 		return true;
 	}
-	bool set_version(long version) {
-		int ret = X509_set_version(_handle, version);
+	bool set_version(Version::EnumType version) {
+		int ret = X509_set_version(_handle, static_cast<long>(version));
 		if (ret == 0) {
 			std::cerr << "Failed to set version" << std::endl;
 			return false;
@@ -42,7 +48,7 @@ public:
 		_version = version;
 		return true;
 	}
-	long version() const {
+	Version::EnumType version() const {
 		return _version;
 	}
 	bool set_serial(long serial) {
@@ -169,7 +175,7 @@ protected:
 		}
 	}
 	void reload_data() {
-		_version = X509_get_version(_handle);
+		_version = static_cast<Version::EnumType>(X509_get_version(_handle));
 		_serial = ASN1_INTEGER_get(X509_get_serialNumber(_handle));
 		_pubkey.set_handle(X509_get_pubkey(_handle));
 		_subject.set_handle(X509_get_subject_name(_handle));
@@ -177,7 +183,7 @@ protected:
 	}
 protected:
 	handle_type *_handle;
-	long _version;
+	Version::EnumType _version;
 	long _serial;
 	Key _pubkey;
 	CertificateName _subject;

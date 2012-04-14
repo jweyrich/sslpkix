@@ -10,24 +10,29 @@
 
 namespace sslpkix {
 
+//
+// NOTE: With OpenSSL, the private key also contains the public key information
+//
 class Key : non_copyable {
 public:
 	typedef EVP_PKEY handle_type;
-	typedef enum {
-		#ifndef OPENSSL_NO_RSA
-		TYPE_RSA = 1,
-		#endif
-		#ifndef OPENSSL_NO_DSA
-		TYPE_DSA = 2,
-		#endif
-		#ifndef OPENSSL_NO_DH
-		TYPE_DH = 3, // Diffie Hellman
-		#endif
-		#ifndef OPENSSL_NO_EC
-		TYPE_EC = 4,
-		#endif
-		TYPE_UNKNOWN = 0
-	} type_e;
+	struct Cipher {
+		enum EnumCipher {
+			#ifndef OPENSSL_NO_RSA
+			RSA = 1,
+			#endif
+			#ifndef OPENSSL_NO_DSA
+			DSA = 2,
+			#endif
+			#ifndef OPENSSL_NO_DH
+			DH = 3, // Diffie Hellman
+			#endif
+			#ifndef OPENSSL_NO_EC
+			EC = 4,
+			#endif
+			UNKNOWN = 0
+		};
+	};
 public:
 	Key() : _handle(NULL), _is_external_handle(false) {
 	}
@@ -45,22 +50,22 @@ public:
 			std::cerr << "Failed to create key" << std::endl;
 		return _handle != NULL;
 	}
-	type_e type() const {
-		int type = EVP_PKEY_type(_handle->type);
-		switch (type) {
+	Cipher::EnumCipher algorithm() const {
+		int algorithm = EVP_PKEY_type(_handle->type);
+		switch (algorithm) {
 			#ifndef OPENSSL_NO_RSA
-			case EVP_PKEY_RSA: return TYPE_RSA;
+			case EVP_PKEY_RSA: return Cipher::RSA;
 			#endif
 			#ifndef OPENSSL_NO_DSA
-			case EVP_PKEY_DSA: return TYPE_DSA;
+			case EVP_PKEY_DSA: return Cipher::DSA;
 			#endif
 			#ifndef OPENSSL_NO_DH
-			case EVP_PKEY_DH: return TYPE_DH;
+			case EVP_PKEY_DH: return Cipher::DH;
 			#endif
 			#ifndef OPENSSL_NO_EC
-			case EVP_PKEY_EC: return TYPE_EC;
+			case EVP_PKEY_EC: return Cipher::EC;
 			#endif
-			default: return TYPE_UNKNOWN;
+			default: return Cipher::UNKNOWN;
 		}
 	}
 	#ifndef OPENSSL_NO_RSA
