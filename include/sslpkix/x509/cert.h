@@ -16,11 +16,12 @@ public:
 	struct Version {
 		enum EnumType {
 			v2 = 2,
-			v3 = 3
+			v3 = 3,
+			invalid = -1
 		};
 	};
 public:
-	Certificate() : _handle(NULL), _version(Version::v3), _serial(0) {
+	Certificate() : _handle(NULL), _version(Version::invalid), _serial(0) {
 	}
 	virtual ~Certificate() {
 		release();
