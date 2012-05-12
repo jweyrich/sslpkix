@@ -14,6 +14,6 @@ bool startup(void);
 void shutdown(void);
 bool seed_prng(void);
 void print_errors(FILE *file);
-bool add_custom_object(const char *oid, const char *sn, const char *ln);
+bool add_custom_object(const char *oid, const char *sn, const char *ln, int *out_nid);
 
 } // namespace sslpkix

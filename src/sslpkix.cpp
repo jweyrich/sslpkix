@@ -15,7 +15,7 @@ bool startup(void) {
 
 void shutdown(void) {
 	X509V3_EXT_cleanup();
-	OBJ_cleanup();
+	OBJ_cleanup(); // for any OBJ_create
 	ERR_free_strings(); // for ERR_load_crypto_strings
 	EVP_cleanup(); // for OpenSSL_add_all_algorithms
 	RAND_cleanup();
@@ -36,13 +36,16 @@ void print_errors(FILE *file) {
 	ERR_print_errors_fp(file);
 }
 
-bool add_custom_object(const char *oid, const char *sn, const char *ln) {
+bool add_custom_object(const char *oid, const char *sn, const char *ln, int *out_nid) {
+	if (out_nid == NULL)
+		return false;
 	int nid = OBJ_create(oid, sn, ln);
 	if (nid == 0) {
 		std::cerr << "Error creating object: " << oid << " " << sn << " " << ln << std::endl;
 		return false;
 	}
 	X509V3_EXT_add_alias(nid, NID_netscape_comment);
+	*out_nid = nid;
 	return true;
 }
 

@@ -6,7 +6,7 @@
 __attribute__((constructor)) static void init() {
 	bool success = sslpkix::startup();
 	if (!success) {
-		std::cerr << "Failed to initialize SSLPKIX." << std::endl;
+		std::cerr << "ERROR: Failed to initialize SSLPKIX." << std::endl;
 		exit(EXIT_FAILURE);
 	}
 }
@@ -18,11 +18,14 @@ __attribute__((destructor)) static void term() {
 static void rsa_callback(int p, int n, void *arg) {
 	(void)n;
 	(void)arg;
-	char c = 'B';
-	if (p == 0) c='.';
-	if (p == 1) c='+';
-	if (p == 2) c='*';
-	if (p == 3) c='\n';
+	char c;
+	switch (p) {
+		default: c = 'B'; break;
+		case 0: c = '.'; break;
+		case 1: c = '+'; break;
+		case 2: c = '*'; break;
+		case 3: c = '\n'; break;
+	}
 	fputc(c, stderr);
 }
 
@@ -53,6 +56,19 @@ TEST_CASE("certificate/creation/1", "Certificate creation")
 	REQUIRE(subject.set_state("RS"));
 	REQUIRE(subject.set_locality("Porto Alegre"));
 	REQUIRE(subject.set_organization("John Doe's Company Pty."));
+
+	//
+	// Add a custom extensions - This is not required.
+	//
+
+	int nid;
+	const char *oid = "1.2.3.4.5.31";
+	const char *short_name = "CTE";
+	const char *long_name = "customTextEntry";
+	const char *value = "Some value here";
+	REQUIRE(sslpkix::add_custom_object(oid, short_name, long_name, &nid));
+	REQUIRE(subject.add_entry(short_name, value));
+	REQUIRE(subject.entry_value(nid) == value);
 
 	//
 	// Generate the key pair
@@ -123,7 +139,7 @@ TEST_CASE("certificate_name/entries", "CertificateName entries")
 	REQUIRE(name.state() == "SP");
 }
 
-TEST_CASE("key/generate/rsa", "RSA key generation")
+TEST_CASE("key/generation/rsa", "RSA key generation")
 {
 	sslpkix::PrivateKey key;
 	REQUIRE(key.create());
@@ -134,10 +150,21 @@ TEST_CASE("key/generate/rsa", "RSA key generation")
 	rsa_key = NULL;
 }
 
-// TEST_CASE("certificate_name/extensions", "CertificateName extension tests")
-// {
-// 	 sslpkix::CertificateName name;
-// 	 REQUIRE(name.create());
-// 	 REQUIRE(name.add_entry("custom_text_entry", "my_custom_text_entry"));
-// 	 //REQUIRE(name.entry("custom_text_entry") == "my_custom_text_entry");
-// }
+TEST_CASE("certificate_name/extensions", "CertificateName extension tests")
+{
+	int nid;
+	const char *oid = "1.2.3.4.5.31";
+	const char *short_name = "CTE";
+	const char *long_name = "customTextEntry";
+	const char *value = "Some value here";
+
+	REQUIRE(sslpkix::add_custom_object(oid, short_name, long_name, &nid));
+	sslpkix::CertificateName name;
+	REQUIRE(name.create());
+	REQUIRE(name.add_entry(short_name, value));
+	int index;
+	REQUIRE((index = name.find_entry(nid)) != -1);
+	REQUIRE(name.entry(index) != NULL);
+	REQUIRE(name.entry_count() == 1);
+	REQUIRE(name.entry_value(nid) == value);
+}
