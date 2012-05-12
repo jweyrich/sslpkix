@@ -106,13 +106,9 @@ ifeq ($(PLATFORM_OS), Darwin)
 	$(SYMLINK) $(TARGET).$(TARGET_VERSION).dylib $(DEST_DIR)/$(TARGET).dylib
 endif
 
-# Test
-
 test: $(TEST_OBJECTS) library
 	@echo 'Building test binary: $(DEST_DIR)/$(TEST_TARGET)'
 	$(LINK) $(LFLAGS) -o $(DEST_DIR)/$(TEST_TARGET) $(TEST_OBJECTS) $(TEST_LIBS)
-
-# Clean
 
 clean:
 	-$(DEL_DIR) $(OBJECTS_DIR)
@@ -120,12 +116,11 @@ clean:
 	-$(DEL_FILE) \
 		$(DEST_DIR)/$(TARGET).a \
 		$(DEST_DIR)/$(TARGET).$(TARGET_VERSION).a
-ifeq "$(PLATFORM_OS)" "Linux"
+ifeq ($(PLATFORM_OS), Linux)
 	-$(DEL_FILE) \
 		$(DEST_DIR)/$(TARGET).so \
 		$(DEST_DIR)/$(TARGET).so.$(TARGET_VERSION)
-endif
-ifeq "$(PLATFORM_OS)" "Darwin"
+else ifeq ($(PLATFORM_OS), Darwin)
 	-$(DEL_FILE) \
 		$(DEST_DIR)/$(TARGET).dylib \
 		$(DEST_DIR)/$(TARGET).$(TARGET_VERSION).dylib
