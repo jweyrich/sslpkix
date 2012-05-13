@@ -89,7 +89,7 @@ public:
 		if (_handle == NULL)
 			std::cerr << "Failed to create readonly memory BIO: " << buffer << std::endl;
 		_buffer = buffer;
-		_size = size == -1 ? strlen(buffer) : size;
+		_size = size == -1 ? strlen(static_cast<char *>(buffer)) : size;
 		return _handle != NULL;
 	}
 	virtual bool open_rw() {

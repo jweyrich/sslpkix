@@ -150,7 +150,7 @@ TEST_CASE("key/generation/rsa", "RSA key generation")
 	rsa_key = NULL;
 }
 
-TEST_CASE("certificate_name/extensions", "CertificateName extension tests")
+TEST_CASE("certificate_name/extensions", "CertificateName extension")
 {
 	int nid;
 	const char *oid = "1.2.3.4.5.31";
