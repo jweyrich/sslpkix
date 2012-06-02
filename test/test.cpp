@@ -1,19 +1,9 @@
 #include <cstdlib>
 #include <iostream>
 #include "sslpkix/sslpkix.h"
-#include "catch_with_main.hpp"
 
-__attribute__((constructor)) static void init() {
-	bool success = sslpkix::startup();
-	if (!success) {
-		std::cerr << "ERROR: Failed to initialize SSLPKIX." << std::endl;
-		exit(EXIT_FAILURE);
-	}
-}
-
-__attribute__((destructor)) static void term() {
-	sslpkix::shutdown();
-}
+#define CATCH_CONFIG_RUNNER
+#include "catch.hpp"
 
 static void rsa_callback(int p, int n, void *arg) {
 	(void)n;
@@ -167,4 +157,19 @@ TEST_CASE("certificate_name/extensions", "CertificateName extension")
 	REQUIRE(name.entry(index) != NULL);
 	REQUIRE(name.entry_count() == 1);
 	REQUIRE(name.entry_value(nid) == value);
+}
+
+int main(int argc, char *const argv[])
+{
+	bool success = sslpkix::startup();
+	if (!success) {
+		std::cerr << "ERROR: Failed to initialize SSLPKIX." << std::endl;
+		exit(EXIT_FAILURE);
+	}
+
+	int result = Catch::Main(argc, argv);
+
+	sslpkix::shutdown();
+
+	return result;
 }
