@@ -2,6 +2,9 @@
 #include <iostream>
 #include <openssl/err.h>
 #include <openssl/rand.h>
+#if defined(_WIN32)
+#  include <NTSecAPI.h>
+#endif
 
 namespace sslpkix {
 
@@ -23,7 +26,15 @@ void shutdown(void) {
 }
 
 bool seed_prng(void) {
-#if defined(__linux__)
+#if defined(_WIN32)
+	char buffer[1024];
+	// RtlGenRandom is provided by ADVAPI32.DLL on Windows >= XP.
+	// Windows's rand_s() internally calls RtlGenRandom.
+	// Python's urandom() uses /dev/[u]random on Unix-based systems and CryptGenRandom on Windows systems.
+	// Crypto++ uses RtlGenRandom on Windows.
+	RtlGenRandom(&buffer, sizeof(buffer));
+	RAND_add(buffer, sizeof(buffer), sizeof(buffer));
+#elif defined(__linux__)
 	// Stick to /dev/urandom on Linux, because /dev/random is blocking :-(
 	RAND_load_file("/dev/urandom", 1024);
 #else
