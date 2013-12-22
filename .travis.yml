@@ -1,0 +1,22 @@
+language: cpp
+compiler:
+  - gcc
+  - clang
+
+branches:
+  only:
+    - master
+
+before_install:
+  # Update submodules before install
+  - git submodule update --init --recursive
+
+before_script:
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq libssl-dev
+
+script:
+  - make clean all
+  - sudo make install
+  - cd build
+  - ./run_tests
