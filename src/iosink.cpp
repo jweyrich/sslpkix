@@ -38,8 +38,15 @@ IoSink& operator>>(IoSink& sink, std::string& str) {
 			str.append(buf, ret);
 	} while (ret > 0);
 
+	// man BIO_read - http://www.manpagez.com/man/3/BIO_read/ 
+	// NOTES
+	// 		A 0 or -1 return is not necessarily an indication of an error. In
+	//		particular when the source/sink is non-blocking or of a certain type it
+	// 		may merely be an indication that no data is currently available and
+	// 		that the application should retry the operation later.
+
 	if (ret == -1)
-		throw std::ios_base::failure("BIO_read failed");
+		; // EOF?
 	else if (ret == -2)
 		throw std::ios_base::failure("BIO_read is not implemented for this BIO");
 
