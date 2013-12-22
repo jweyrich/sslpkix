@@ -103,7 +103,7 @@ public:
 		return EVP_PKEY_set1_EC_KEY(_handle, key) != 0;
 	}
 	#endif
-	virtual bool load(IoSink& sink UNUSED) {
+	virtual bool load(IoSink& sink UNUSED, const char *password UNUSED) {
 		return false;
 	}
 	virtual bool save(IoSink& sink UNUSED) const {
@@ -149,7 +149,7 @@ public:
 			std::cerr << "Failed to load private key: " << sink.source() << std::endl;
 		return _handle != NULL;
 	}
-	virtual bool save(IoSink& sink) {
+	virtual bool save(IoSink& sink) const {
 		if (_handle == NULL)
 			return false;
 		int ret = PEM_write_bio_PrivateKey(sink.handle(), _handle, NULL, NULL, 0, 0, NULL);
