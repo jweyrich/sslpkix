@@ -111,6 +111,49 @@ TEST_CASE("certificate/creation/1", "Certificate creation")
 	cert_file.close();
 }
 
+TEST_CASE("iosink/operators", "IoSink operators")
+{
+	sslpkix::FileSink cert_file;
+	REQUIRE(cert_file.open("JohnDoe.crt", "rb"));
+	std::string cert_string;
+	cert_file >> cert_string; // IoSink to std::string
+	//std::cout << cert_string << std::endl;
+	cert_file.close();
+	// TODO(jweyrich): Test whether operator>> was successful. How?
+
+	std::stringstream sstream;
+
+	sslpkix::MemorySink cert_mem;
+	REQUIRE(cert_mem.open_rw());
+	cert_mem << cert_string; // std::string to IoSink
+	sstream << cert_mem; // IoSink to std::stringstream
+	cert_mem.close();
+	REQUIRE(sstream.str() == cert_string);
+
+	// Reset the stringstream
+	sstream.str(std::string());
+
+	sslpkix::MemorySink key_mem;
+	REQUIRE(key_mem.open_rw());
+	std::filebuf fbuf;
+	fbuf.open("JohnDoe.key", std::ios::in);
+	std::istream istream(&fbuf);
+	istream >> key_mem; // std::istream to IoSink
+	std::string key_string;
+	key_mem >> key_string; // IoSink to std::string
+	//std::cout << key_string << std::endl;
+
+	istream.clear(); // Clear EOF flag (required before C++11)
+	istream.seekg(0); // Rewind the std::iostream
+	sstream << istream.rdbuf(); // std::istream to std::stringstream
+	//std::cout << sstream.str() << std::endl;
+
+	REQUIRE(sstream.str() == key_string);
+
+	fbuf.close();
+	key_mem.close();
+}
+
 TEST_CASE("certificate_name/entries", "CertificateName entries")
 {
 	sslpkix::CertificateName name;
