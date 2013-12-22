@@ -21,7 +21,11 @@ public:
 		};
 	};
 public:
-	Certificate() : _handle(NULL), _version(Version::invalid), _serial(0) {
+	Certificate()
+		: _handle(NULL)
+		, _version(Version::invalid)
+		, _serial(0)
+	{
 	}
 	virtual ~Certificate() {
 		release();

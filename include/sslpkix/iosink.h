@@ -12,7 +12,9 @@ class IoSink : non_copyable {
 public:
 	typedef BIO handle_type;
 public:
-	IoSink() : _handle(NULL) {
+	IoSink()
+		: _handle(NULL)
+	{
 	}
 	virtual ~IoSink() {
 		release();
@@ -81,7 +83,10 @@ protected:
 
 class MemorySink : public IoSink {
 public:
-	MemorySink() : _buffer(NULL), _size(0) {
+	MemorySink()
+		: _buffer(NULL)
+		, _size(0)
+	{
 	}
 	virtual bool open_ro(void *buffer, int size) {
 		release();

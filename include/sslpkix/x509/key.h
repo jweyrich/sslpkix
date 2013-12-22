@@ -34,7 +34,10 @@ public:
 		};
 	};
 public:
-	Key() : _handle(NULL), _is_external_handle(false) {
+	Key()
+		: _handle(NULL)
+		, _is_external_handle(false)
+	{
 	}
 	virtual ~Key() {
 		release();

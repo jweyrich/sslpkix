@@ -15,7 +15,10 @@ class CertificateName : non_copyable {
 public:
 	typedef X509_NAME handle_type;
 public:
-	CertificateName() : _handle(NULL), _is_external_handle(false) {
+	CertificateName()
+		: _handle(NULL)
+		, _is_external_handle(false)
+	{
 	}
 	~CertificateName() {
 		release();

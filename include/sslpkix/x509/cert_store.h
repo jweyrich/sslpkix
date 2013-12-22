@@ -18,7 +18,9 @@ class CertificateStore : non_copyable  {
 public:
 	typedef X509_STORE handle_type;
 public:
-	CertificateStore() : _handle(NULL) {
+	CertificateStore()
+		: _handle(NULL)
+	{
 	}
 	~CertificateStore() {
 		release();

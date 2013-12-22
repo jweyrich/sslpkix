@@ -14,7 +14,10 @@ class CertificateRequest : non_copyable {
 public:
 	typedef X509_REQ handle_type;
 public:
-	CertificateRequest() : _handle(NULL), _version(0) {
+	CertificateRequest()
+		: _handle(NULL)
+		, _version(0)
+	{
 	}
 	virtual ~CertificateRequest() {
 		release();
