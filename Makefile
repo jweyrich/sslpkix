@@ -1,139 +1,165 @@
 ####### Platform specifics
 
-PLATFORM_OS := $(shell uname)
-PLATFORM_ARCH := $(shell uname -p)
+# cut is necessary for Cygwin
+PLATFORM_OS := $(shell uname | cut -d_ -f1)
 
-####### Compiler, tools and options
+####### Makefile Conventions - Directory variables
 
-CC				= gcc
-CXX				= g++
-DEFINES			= -DDEBUG -DSSLPKIX_LIBRARY
-CFLAGS			= -fPIC -pipe -O0 -g3 -Wall -Wextra -pedantic -rdynamic -fmessage-length=0 -std=c99 $(DEFINES)
-CXXFLAGS		= -fPIC -pipe -O0 -g3 -Wall -Wextra -pedantic -rdynamic -fmessage-length=0 -std=c++98 $(DEFINES)
+prefix = /usr
+exec_prefix = $(prefix)
+bindir = $(exec_prefix)/bin
+sbindir = $(exec_prefix)/sbin
+libexecdir = $(exec_prefix)/libexec
+datarootdir = $(prefix)/share
+datadir = $(datarootdir)
+sysconfdir = $(prefix)/etc
+localstatedir = $(prefix)/var
+includedir = $(prefix)/include
+docdir = $(datarootdir)/doc/libsslpkix
+infodir = $(datarootdir)/info
+libdir = $(exec_prefix)/lib
+localedir = $(datarootdir)/locale
+mandir = $(datarootdir)/man
+man1dir = $(mandir)/man1
+manext = .1
+man1ext = .1
+srcdir = src src/openssl/apps src/x509
+testdir = test
+
+####### Makefile Conventions - Utilities
+
+CC ?= gcc
+CXX ?= g++
+LINK = $(CXX)
+CHK_DIR_EXISTS = test -d
+CHK_FILE_EXISTS = test -f
+INSTALL = install
+INSTALL_DATA = ${INSTALL} -m 644
+INSTALL_PROGRAM = $(INSTALL)
+SYMLINK = ln -sf
+MKDIR = mkdir -p
+RM = rm -f
+RM_DIR = rm -rf
+ifeq ($(PLATFORM_OS), Darwin)
+        STRIP = strip -x
+else
+        STRIP = strip --strip-unneeded
+endif
+
+####### Compiler options
+
+DEST = $(DESTDIR)$(libdir)
+INCPATH = -Iinclude
+override LFLAGS   += -lssl -lcrypto
+override CFLAGS   += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c99
+override CXXFLAGS += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c++98
+override CPPFLAGS += -DDEBUG
+ifeq ($(CC), gcc)
+	override CFLAGS   += -rdynamic
+	override CXXFLAGS += -rdynamic
+endif
+
 ifeq ($(PLATFORM_OS), Darwin)
 	# We disable warnings for deprecated declarations because Apple deprecated OpenSSL in Mac OS X 10.7
-	CFLAGS		+= -Wno-deprecated-declarations
-	CXXFLAGS	+= -Wno-deprecated-declarations
+	override CFLAGS   += -Wno-deprecated-declarations
+	override CXXFLAGS += -Wno-deprecated-declarations
 endif
-INCPATH			= -Iinclude -Ilib/Catch/include
-LINK			= g++
-LFLAGS			=
-LIBS			= -lssl -lcrypto
-AR				= ar cq
-RANLIB			= ranlib -s
-TAR				= tar -cf
-COMPRESS		= gzip -9f
-COPY			= cp -f
-SED				= sed
-COPY_FILE		= cp -f
-COPY_DIR		= cp -f -R
-STRIP			=
-INSTALL_FILE	= $(COPY_FILE)
-INSTALL_DIR		= $(COPY_DIR)
-INSTALL_PROGRAM	= $(COPY_FILE)
-DEL_FILE		= rm -f
-SYMLINK			= ln -sf
-DEL_DIR			= rm -rf
-MOVE			= mv -f
-CHK_DIR_EXISTS	= test -d
-MKDIR			= mkdir -p
 
-####### Files
+VERSION = 1.0
+LIBNAME = libsslpkix
+TESTNAME = run_tests
 
-#
-# NOTE: Don't use := on recursively-expanding variable
-#
+libsslpkix_BUILDDIR = $(CURDIR)/build
+libsslpkix_SRCS_FILTER = $(wildcard ${dir}/*.c) $(wildcard ${dir}/*.cpp)
+libsslpkix_SRCS = $(foreach dir, ${srcdir}, ${libsslpkix_SRCS_FILTER})
+libsslpkix_OBJS = $(addprefix ${libsslpkix_BUILDDIR}/, $(addsuffix .o, $(basename ${libsslpkix_SRCS})))
 
-# Library
-SOURCE_DIRS		= src src/openssl/apps src/x509
-SOURCE_FILTER	= $(wildcard $(dir)/*.cpp) $(wildcard $(dir)/*.c)
-SOURCES			= $(foreach dir, $(SOURCE_DIRS), $(SOURCE_FILTER))
-OBJECTS			= $(addprefix $(OBJECTS_DIR)/, $(addsuffix .o, $(basename ${SOURCES})))
-DIST			=
-DEST_DIR		= build
-OBJECTS_DIR		= $(DEST_DIR)/obj
-TARGET			= libsslpkix
-TARGET_VERSION	= 1.0
-
-# Tests
-TEST_SOURCE_DIRS	= test
-TEST_SOURCE_FILTER	= $(wildcard $(dir)/*.cpp) $(wildcard $(dir)/*.c)
-TEST_SOURCES		= $(foreach dir, $(TEST_SOURCE_DIRS), $(TEST_SOURCE_FILTER))
-TEST_OBJECTS		= $(addprefix $(OBJECTS_DIR)/, $(addsuffix .o, $(basename ${TEST_SOURCES})))
-#TEST_LIBS			= $(LIBS) $(DEST_DIR)/$(TARGET).a
-TEST_LIBS			= $(LIBS) -L$(DEST_DIR) -lsslpkix
-TEST_TARGET			= run_tests
+test_SRCS_FILTER = $(wildcard ${dir}/*.c) $(wildcard ${dir}/*.cpp)
+test_SRCS = $(foreach dir, ${testdir}, ${test_SRCS_FILTER})
+test_OBJS = $(addprefix ${libsslpkix_BUILDDIR}/, $(addsuffix .o, $(basename ${test_SRCS})))
 
 ####### Build rules
 
-.PHONY: all clean build library test
-	pre-build post-build
-	static-library shared-library
-.SECONDARY: post-build
+.PHONY : libsslpkix test install strip-binaries install-strip uninstall clean
 
-all: build
+all: libsslpkix test
 
-pre-build:
-	@echo 'Compiling...'
+test: libsslpkix
+test: INCPATH += -Ilib/Catch/include
+test: LFLAGS += -L$(libsslpkix_BUILDDIR) -lsslpkix
+test: $(test_OBJS)
+	@echo 'Building test binary: $(libsslpkix_BUILDDIR)/$(TESTNAME)'
+	$(LINK) $(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(TESTNAME) $(test_OBJS)
 
-post-build:
-	@echo 'Done.'
-
-library: static-library shared-library
-
-build: pre-build library test
-	@$(MAKE) --no-print-directory post-build
-
-static-library: $(OBJECTS)
-	@echo 'Building static library: $(DEST_DIR)/$(TARGET).a'
-	$(AR) $(DEST_DIR)/$(TARGET).$(TARGET_VERSION).a $(OBJECTS)
-	$(RANLIB) $(DEST_DIR)/$(TARGET).$(TARGET_VERSION).a
-	$(SYMLINK) $(TARGET).$(TARGET_VERSION).a $(DEST_DIR)/$(TARGET).a
-
-shared-library: $(OBJECTS)
+libsslpkix: CPPFLAGS += -DSSLPKIX_LIBRARY
+libsslpkix: CFLAGS += -fPIC
+libsslpkix: CXXFLAGS += -fPIC
+libsslpkix: $(libsslpkix_OBJS)
+	# @echo "Building static library: $(libsslpkix_BUILDDIR)/$(LIBNAME).a"
+	# $(AR) cqv $(libsslpkix_BUILDDIR)/$(LIBNAME).a $^
+	# $(RANLIB) $(libsslpkix_BUILDDIR)/$(LIBNAME).a
+	# $(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).a $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).a
 ifeq ($(PLATFORM_OS), Linux)
-	@echo 'Building shared library: $(DEST_DIR)/$(TARGET).so'
-	$(LINK) $(LFLAGS) -shared -Wl,-soname,$(TARGET).so.$(TARGET_VERSION) \
-		-o $(DEST_DIR)/$(TARGET).so.$(TARGET_VERSION) $(OBJECTS) $(LIBS)
-	$(SYMLINK) $(TARGET).so.$(TARGET_VERSION) $(DEST_DIR)/$(TARGET).so
-endif
-ifeq ($(PLATFORM_OS), Darwin)
-	@echo 'Building shared library: $(DEST_DIR)/$(TARGET).dylib'
-	$(LINK) $(LFLAGS) -headerpad_max_install_names -dynamiclib \
-		-o $(DEST_DIR)/$(TARGET).$(TARGET_VERSION).dylib \
-		-flat_namespace -install_name $(TARGET).$(TARGET_VERSION).dylib \
-		-current_version $(TARGET_VERSION) -compatibility_version $(TARGET_VERSION) $(OBJECTS) $(LIBS)
-	$(SYMLINK) $(TARGET).$(TARGET_VERSION).dylib $(DEST_DIR)/$(TARGET).dylib
+	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).so'
+	$(LINK) -shared -Wl,-soname,$(LIBNAME).so.1 $(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).so $^
+	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).so $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION)
+else ifeq ($(PLATFORM_OS), Darwin)
+	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib'
+	$(LINK) -headerpad_max_install_names -dynamiclib \
+		-flat_namespace -install_name $(LIBNAME).$(VERSION).dylib \
+		-current_version $(VERSION) -compatibility_version $(VERSION) \
+		$(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib $^
+	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dylib
+else ifeq ($(PLATFORM_OS), CYGWIN)
+	echo 789
+	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).dll'
+	$(LINK) -shared $(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).dll $^
+	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).dll $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dll
 endif
 
-test: $(TEST_OBJECTS) library
-	@echo 'Building test binary: $(DEST_DIR)/$(TEST_TARGET)'
-	$(LINK) $(LFLAGS) -o $(DEST_DIR)/$(TEST_TARGET) $(TEST_OBJECTS) $(TEST_LIBS)
+$(libsslpkix_BUILDDIR)/%.o: %.c
+	@echo 'Building file: $<'
+	@$(CHK_DIR_EXISTS) $(dir $@) || $(MKDIR) $(dir $@)
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $(INCPATH) -o $@ $<
+
+$(libsslpkix_BUILDDIR)/%.o: %.cpp
+	@echo 'Building file: $<'
+	@$(CHK_DIR_EXISTS) $(dir $@) || $(MKDIR) $(dir $@)
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCPATH) -o $@ $<
+
+install: installdirs
+	#$(INSTALL_DATA) $(LIBNAME).a $(DEST)/$(LIBNAME).a.$(VERSION)
+	#cd $(DEST); $(SYMLINK) $(LIBNAME).a.$(VERSION) $(LIBNAME).a
+	#cd $(DEST); $(SYMLINK) $(LIBNAME).a.$(VERSION) $(LIBNAME).a.1
+ifeq ($(PLATFORM_OS), Linux)
+	$(INSTALL_DATA) $(LIBNAME).so $(DEST)/$(LIBNAME).so.$(VERSION)
+	cd $(DEST); $(SYMLINK) $(LIBNAME).so.$(VERSION) $(LIBNAME).so
+	cd $(DEST); $(SYMLINK) $(LIBNAME).so.$(VERSION) $(LIBNAME).so.1
+else ifeq ($(PLATFORM_OS), Darwin)
+	$(INSTALL_DATA) $(LIBNAME).dylib $(DEST)/$(LIBNAME).$(VERSION).dylib
+	cd $(DEST); $(SYMLINK) $(LIBNAME).$(VERSION).dylib $(LIBNAME).dylib
+	cd $(DEST); $(SYMLINK) $(LIBNAME).$(VERSION).dylib $(LIBNAME).1.dylib
+else ifeq ($(PLATFORM_OS), CYGWIN)
+	# TODO
+endif
+
+installdirs:
+	@$(CHK_DIR_EXISTS) $(DEST) || $(MKDIR) $(DEST)
+
+strip-binaries:
+ifeq ($(PLATFORM_OS), Linux)
+	$(STRIP) $(LIBNAME).so
+else ifeq ($(PLATFORM_OS), Darwin)
+	$(STRIP) $(LIBNAME).dylib
+else ifeq ($(PLATFORM_OS), CYGWIN)
+	$(STRIP) $(LIBNAME).dll
+endif
+
+install-strip: strip-binaries install
+
+uninstall:
+	$(RM) $(DEST)/$(LIBNAME).so* \
+		$(DEST)/$(LIBNAME)*.dylib
 
 clean:
-	-$(DEL_DIR) $(OBJECTS_DIR)
-	-$(DEL_FILE) $(DEST_DIR)/$(TEST_TARGET)
-	-$(DEL_FILE) \
-		$(DEST_DIR)/$(TARGET).a \
-		$(DEST_DIR)/$(TARGET).$(TARGET_VERSION).a
-ifeq ($(PLATFORM_OS), Linux)
-	-$(DEL_FILE) \
-		$(DEST_DIR)/$(TARGET).so \
-		$(DEST_DIR)/$(TARGET).so.$(TARGET_VERSION)
-else ifeq ($(PLATFORM_OS), Darwin)
-	-$(DEL_FILE) \
-		$(DEST_DIR)/$(TARGET).dylib \
-		$(DEST_DIR)/$(TARGET).$(TARGET_VERSION).dylib
-endif
-
-####### Compile
-
-$(OBJECTS_DIR)/%.o: %.c
-	@echo 'Building file: $<'
-	@$(CHK_DIR_EXISTS) $(dir $@) || $(MKDIR) $(dir $@)
-	$(CC) -c $(CFLAGS) $(INCPATH) -o $@ $<
-
-$(OBJECTS_DIR)/%.o: %.cpp
-	@echo 'Building file: $<'
-	@$(CHK_DIR_EXISTS) $(dir $@) || $(MKDIR) $(dir $@)
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o $@ $<
+	$(RM_DIR) $(libsslpkix_BUILDDIR)
