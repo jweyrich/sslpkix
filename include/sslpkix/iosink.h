@@ -1,6 +1,7 @@
 #pragma once
 
 //#include <cassert>
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <openssl/bio.h>
