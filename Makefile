@@ -41,9 +41,9 @@ MKDIR = mkdir -p
 RM = rm -f
 RM_DIR = rm -rf
 ifeq ($(PLATFORM_OS), Darwin)
-        STRIP = strip -x
+	STRIP = strip -x
 else
-        STRIP = strip --strip-unneeded
+	STRIP = strip --strip-unneeded
 endif
 
 ####### Compiler options
@@ -110,7 +110,6 @@ else ifeq ($(PLATFORM_OS), Darwin)
 		$(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib $^
 	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dylib
 else ifeq ($(PLATFORM_OS), CYGWIN)
-	echo 789
 	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).dll'
 	$(LINK) -shared $(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).dll $^
 	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).dll $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dll
