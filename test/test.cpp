@@ -167,7 +167,7 @@ int main(int argc, char *const argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	int result = Catch::Main(argc, argv);
+	int result = Catch::Session().run(argc, argv);
 
 	sslpkix::shutdown();
 
