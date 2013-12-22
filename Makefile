@@ -55,8 +55,7 @@ override CFLAGS   += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -s
 override CXXFLAGS += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c++98
 override CPPFLAGS += -DDEBUG
 ifeq ($(CC), gcc)
-	override CFLAGS   += -rdynamic
-	override CXXFLAGS += -rdynamic
+	override LFLAGS   += -rdynamic
 endif
 
 ifeq ($(PLATFORM_OS), Darwin)
