@@ -128,15 +128,15 @@ $(libsslpkix_BUILDDIR)/%.o: %.cpp
 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCPATH) -o $@ $<
 
 install: installdirs
-	#$(INSTALL_DATA) $(LIBNAME).a $(DEST)/$(LIBNAME).a.$(VERSION)
+	#$(INSTALL_DATA) $(libsslpkix_BUILDDIR)/$(LIBNAME).a $(DEST)/$(LIBNAME).a.$(VERSION)
 	#cd $(DEST); $(SYMLINK) $(LIBNAME).a.$(VERSION) $(LIBNAME).a
 	#cd $(DEST); $(SYMLINK) $(LIBNAME).a.$(VERSION) $(LIBNAME).a.1
 ifeq ($(PLATFORM_OS), Linux)
-	$(INSTALL_DATA) $(LIBNAME).so $(DEST)/$(LIBNAME).so.$(VERSION)
+	$(INSTALL_DATA) $(libsslpkix_BUILDDIR)/$(LIBNAME).so $(DEST)/$(LIBNAME).so.$(VERSION)
 	cd $(DEST); $(SYMLINK) $(LIBNAME).so.$(VERSION) $(LIBNAME).so
 	cd $(DEST); $(SYMLINK) $(LIBNAME).so.$(VERSION) $(LIBNAME).so.1
 else ifeq ($(PLATFORM_OS), Darwin)
-	$(INSTALL_DATA) $(LIBNAME).dylib $(DEST)/$(LIBNAME).$(VERSION).dylib
+	$(INSTALL_DATA) $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib $(DEST)/$(LIBNAME).$(VERSION).dylib
 	cd $(DEST); $(SYMLINK) $(LIBNAME).$(VERSION).dylib $(LIBNAME).dylib
 	cd $(DEST); $(SYMLINK) $(LIBNAME).$(VERSION).dylib $(LIBNAME).1.dylib
 else ifeq ($(PLATFORM_OS), CYGWIN)
