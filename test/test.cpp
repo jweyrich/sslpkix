@@ -66,11 +66,17 @@ TEST_CASE("certificate/creation/1", "Certificate creation")
 
 	sslpkix::PrivateKey key;
 	REQUIRE(key.create());
-	RSA *rsa_key = RSA_generate_key(1024, RSA_F4, rsa_callback, NULL);
-	REQUIRE(rsa_key != NULL);
-	REQUIRE(key.copy(rsa_key));
-	RSA_free(rsa_key);
-	rsa_key = NULL;
+	RSA *rsa_keypair = RSA_new();
+	REQUIRE(rsa_keypair != NULL);
+	BIGNUM *f4 = BN_new();
+	REQUIRE(f4 != NULL);
+	REQUIRE(BN_set_word(f4, RSA_F4) != 0);
+	REQUIRE(RSA_generate_key_ex(rsa_keypair, 1024, f4, NULL) != 0);
+	REQUIRE(key.copy(rsa_keypair));
+	BN_free(f4);
+	f4 = NULL;
+	RSA_free(rsa_keypair);
+	rsa_keypair = NULL;
 
 	sslpkix::FileSink key_file;
 	REQUIRE(key_file.open("JohnDoe.key", "wb"));
@@ -176,11 +182,17 @@ TEST_CASE("key/generation/rsa", "RSA key generation")
 {
 	sslpkix::PrivateKey key;
 	REQUIRE(key.create());
-	RSA *rsa_key = RSA_generate_key(512, RSA_F4, rsa_callback, NULL);
-	REQUIRE(rsa_key != NULL);
-	REQUIRE(key.copy(rsa_key));
-	RSA_free(rsa_key);
-	rsa_key = NULL;
+	RSA *rsa_keypair = RSA_new();
+	REQUIRE(rsa_keypair != NULL);
+	BIGNUM *f4 = BN_new();
+	REQUIRE(f4 != NULL);
+	REQUIRE(BN_set_word(f4, RSA_F4) != 0);
+	REQUIRE(RSA_generate_key_ex(rsa_keypair, 512, f4, NULL) != 0);
+	REQUIRE(key.copy(rsa_keypair));
+	BN_free(f4);
+	f4 = NULL;
+	RSA_free(rsa_keypair);
+	rsa_keypair = NULL;
 }
 
 TEST_CASE("certificate_name/extensions", "CertificateName extension")
