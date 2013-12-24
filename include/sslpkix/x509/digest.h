@@ -41,10 +41,10 @@ public:
 		TYPE_NULL = 0
 	} type_e;
 public:
-	static const handle_type *get(const char *name) {
+	static const handle_type *handle(const char *name) {
 		return EVP_get_digestbyname(name);
 	}
-	static const handle_type *get(type_e digest) {
+	static const handle_type *handle(type_e digest) {
 		switch (digest) {
 			case TYPE_NULL: return EVP_md_null();
 			#ifndef OPENSSL_NO_MD2

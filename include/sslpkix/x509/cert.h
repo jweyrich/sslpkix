@@ -85,7 +85,7 @@ public:
 		return _pubkey;
 	}
 	bool sign(PrivateKey& key, Digest::type_e digest = Digest::TYPE_SHA1) {
-		if (!X509_sign(_handle, key.handle(), Digest::get(digest))) {
+		if (!X509_sign(_handle, key.handle(), Digest::handle(digest))) {
 			std::cerr << "Failed to sign" << std::endl;
 			return false;
 		}
