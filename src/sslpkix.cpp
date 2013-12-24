@@ -40,6 +40,11 @@ bool seed_prng(void) {
 #else
 	RAND_load_file("/dev/random", 1024);
 #endif
+	int ok = RAND_status();
+	if (ok != 1) {
+		std::cerr << "Error seeding PRNG: not enough data" << std::endl;
+		return false;
+	}
 	return true;
 }
 

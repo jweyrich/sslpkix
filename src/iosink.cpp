@@ -41,7 +41,7 @@ IoSink& operator>>(IoSink& sink, std::string& str) {
 	// man BIO_read - http://www.manpagez.com/man/3/BIO_read/ 
 	// NOTES
 	// 		A 0 or -1 return is not necessarily an indication of an error. In
-	//		particular when the source/sink is non-blocking or of a certain type it
+	// 		particular when the source/sink is non-blocking or of a certain type it
 	// 		may merely be an indication that no data is currently available and
 	// 		that the application should retry the operation later.
 
