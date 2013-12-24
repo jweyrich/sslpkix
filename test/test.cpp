@@ -119,6 +119,15 @@ TEST_CASE("certificate/creation/1", "Certificate creation")
 	REQUIRE(cert_file.open("JohnDoe.crt", "wb"));
 	REQUIRE(cert.save(cert_file));
 	cert_file.close();
+
+	// TODO(jweyrich): Move the following to a different test case, "certificate/copy_ctor"
+	sslpkix::Certificate certCopy1(cert);
+	REQUIRE(certCopy1 == cert);
+
+	// TODO(jweyrich): Move the following to a different test case, "certificate/assignament_op"
+	sslpkix::Certificate certCopy2;
+	certCopy2 = cert;
+	REQUIRE(certCopy2 == cert);
 }
 
 TEST_CASE("iosink/operators", "IoSink operators")
@@ -199,6 +208,11 @@ TEST_CASE("key/generation/rsa", "RSA key generation")
 	f4 = NULL;
 	RSA_free(rsa_keypair);
 	rsa_keypair = NULL;
+
+	// TODO(jweyrich): Move the following to a different test case, "key/copy_ctor"
+	sslpkix::PrivateKey keyCopy1(key);
+	REQUIRE(keyCopy1 == key);
+
 }
 
 TEST_CASE("certificate_name/extensions", "CertificateName extension")
@@ -218,6 +232,15 @@ TEST_CASE("certificate_name/extensions", "CertificateName extension")
 	REQUIRE(name.entry(index) != NULL);
 	REQUIRE(name.entry_count() == 1);
 	REQUIRE(name.entry_value(nid) == value);
+
+	// TODO(jweyrich): Move the following to a different test case, "certificate_name/copy_ctor"
+	sslpkix::CertificateName nameCopy1(name);
+	REQUIRE(nameCopy1 == name);
+
+	// TODO(jweyrich): Move the following to a different test case, "certificate_name/assignament_op"
+	sslpkix::CertificateName nameCopy2;
+	nameCopy2 = name;
+	REQUIRE(nameCopy2 == name);
 }
 
 int main(int argc, char *const argv[])

@@ -6,14 +6,13 @@
 #include <openssl/pem.h>
 #include "sslpkix/iosink.h"
 #include "sslpkix/common.h"
-#include "sslpkix/non_copyable.h"
 
 namespace sslpkix {
 
 //
 // NOTE: With OpenSSL, the private key also contains the public key information
 //
-class Key : non_copyable {
+class Key {
 public:
 	typedef EVP_PKEY handle_type;
 	struct Cipher {
@@ -38,6 +37,26 @@ public:
 		: _handle(NULL)
 		, _is_external_handle(false)
 	{
+	}
+	Key(const Key& other) {
+		// Srsly OpenSSL, Y U NO HAVE EVP_PKEY_dup(EVP_PKEY*) ? :-(
+		_handle = other._handle;
+		CRYPTO_add(&_handle->references, 1, CRYPTO_LOCK_EVP_PKEY);
+		if (_handle == NULL) {
+			// std::cerr << "Failed to copy certificate" << std::endl;
+			throw std::bad_alloc();
+		}
+		//reload_data();
+	}
+	Key& operator=(Key other) {
+		release();
+		swap(*this, other);
+		return *this;
+	}
+	friend void swap(Key& a, Key& b) { // nothrow
+		using std::swap; // enable ADL
+		swap(a._handle, b._handle);
+		swap(a._is_external_handle, b._is_external_handle);
 	}
 	virtual ~Key() {
 		release();

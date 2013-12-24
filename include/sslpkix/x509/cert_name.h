@@ -4,13 +4,12 @@
 #include <iostream>
 #include <string>
 #include <openssl/x509.h>
-#include "sslpkix/non_copyable.h"
 
 namespace sslpkix {
 
-// TODO(jweyrich): implement X509_NAME_dup, X509_NAME_hash, X509_NAME_delete_entry
+// TODO(jweyrich): implement X509_NAME_hash, X509_NAME_delete_entry
 
-class CertificateName : non_copyable {
+class CertificateName {
 	// More info: http://www.umich.edu/~x509/ssleay/x509_name.html
 public:
 	typedef X509_NAME handle_type;
@@ -19,6 +18,24 @@ public:
 		: _handle(NULL)
 		, _is_external_handle(false)
 	{
+	}
+	CertificateName(const CertificateName& other) {
+		_handle = X509_NAME_dup(other.handle());
+		if (_handle == NULL) {
+			// std::cerr << "Failed to copy certificate name" << std::endl;
+			throw std::bad_alloc();
+		}
+		//reload_data();
+	}
+	CertificateName& operator=(CertificateName other) {
+		release();
+		swap(*this, other);
+		return *this;
+	}
+	friend void swap(CertificateName& a, CertificateName& b) { // nothrow
+		using std::swap; // enable ADL
+		swap(a._handle, b._handle);
+		swap(a._is_external_handle, b._is_external_handle);
 	}
 	~CertificateName() {
 		release();

@@ -6,11 +6,10 @@
 #include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
-#include "sslpkix/non_copyable.h"
 
 namespace sslpkix {
 
-class Certificate : non_copyable {
+class Certificate {
 public:
 	typedef X509 handle_type;
 	struct Version {
@@ -26,6 +25,28 @@ public:
 		, _version(Version::invalid)
 		, _serial(0)
 	{
+	}
+	Certificate(const Certificate& other) {
+		_handle = X509_dup(other.handle());
+		if (_handle == NULL) {
+			// std::cerr << "Failed to copy certificate" << std::endl;
+			throw std::bad_alloc();
+		}
+		reload_data();
+	}
+	Certificate& operator=(Certificate other) {
+		release();
+		swap(*this, other);
+		return *this;
+	}
+	friend void swap(Certificate& a, Certificate& b) { // nothrow
+		using std::swap; // enable ADL
+		swap(a._handle, b._handle);
+		swap(a._version, b._version);
+		swap(a._serial, b._serial);
+		swap(a._pubkey, b._pubkey);
+		swap(a._subject, b._subject);
+		swap(a._issuer, b._issuer);
 	}
 	virtual ~Certificate() {
 		release();

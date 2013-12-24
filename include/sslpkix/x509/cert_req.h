@@ -6,11 +6,10 @@
 #include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
-#include "sslpkix/non_copyable.h"
 
 namespace sslpkix {
 
-class CertificateRequest : non_copyable {
+class CertificateRequest {
 public:
 	typedef X509_REQ handle_type;
 public:
@@ -18,6 +17,27 @@ public:
 		: _handle(NULL)
 		, _version(0)
 	{
+	}
+	CertificateRequest(const CertificateRequest& other) {
+		_handle = X509_REQ_dup(other.handle());
+		if (_handle == NULL) {
+			// std::cerr << "Failed to copy certificate request" << std::endl;
+			throw std::bad_alloc();
+		}
+		reload_data();
+	}
+	CertificateRequest& operator=(CertificateRequest other) {
+		release();
+		swap(*this, other);
+		return *this;
+	}
+	friend void swap(CertificateRequest& a, CertificateRequest& b) { // nothrow
+		using std::swap; // enable ADL
+		swap(a._handle, b._handle);
+		swap(a._version, b._version);
+		swap(a._serial, b._serial);
+		swap(a._pubkey, b._pubkey);
+		swap(a._subject, b._subject);
 	}
 	virtual ~CertificateRequest() {
 		release();
@@ -118,9 +138,6 @@ protected:
 		_pubkey.set_handle(X509_REQ_get_pubkey(_handle));
 		_subject.set_handle(X509_REQ_get_subject_name(_handle));
 	}
-private:
-	CertificateRequest(const CertificateRequest&);
-	CertificateRequest& operator=(const CertificateRequest&);
 protected:
 	handle_type *_handle;
 	long _version;
