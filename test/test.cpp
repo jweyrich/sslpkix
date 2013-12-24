@@ -5,7 +5,8 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 
-static void rsa_callback(int p, int n, void *arg) {
+
+static int prime_generation_callback(int p, int n, BN_GENCB *arg) {
 	(void)n;
 	(void)arg;
 	char c;
@@ -17,6 +18,7 @@ static void rsa_callback(int p, int n, void *arg) {
 		case 3: c = '\n'; break;
 	}
 	fputc(c, stderr);
+	return 1;
 }
 
 TEST_CASE("certificate/creation/1", "Certificate creation")
@@ -70,8 +72,10 @@ TEST_CASE("certificate/creation/1", "Certificate creation")
 	REQUIRE(rsa_keypair != NULL);
 	BIGNUM *f4 = BN_new();
 	REQUIRE(f4 != NULL);
-	REQUIRE(BN_set_word(f4, RSA_F4) != 0);
-	REQUIRE(RSA_generate_key_ex(rsa_keypair, 1024, f4, NULL) != 0);
+	REQUIRE(BN_set_word(f4, RSA_F4) != 0); // Use the fourth Fermat Number
+	BN_GENCB cb;
+	BN_GENCB_set(&cb, prime_generation_callback, NULL);
+	REQUIRE(RSA_generate_key_ex(rsa_keypair, 1024, f4, &cb) != 0);
 	REQUIRE(key.copy(rsa_keypair));
 	BN_free(f4);
 	f4 = NULL;
@@ -186,8 +190,10 @@ TEST_CASE("key/generation/rsa", "RSA key generation")
 	REQUIRE(rsa_keypair != NULL);
 	BIGNUM *f4 = BN_new();
 	REQUIRE(f4 != NULL);
-	REQUIRE(BN_set_word(f4, RSA_F4) != 0);
-	REQUIRE(RSA_generate_key_ex(rsa_keypair, 512, f4, NULL) != 0);
+	REQUIRE(BN_set_word(f4, RSA_F4) != 0); // Use the fourth Fermat Number
+	BN_GENCB cb;
+	BN_GENCB_set(&cb, prime_generation_callback, NULL);
+	REQUIRE(RSA_generate_key_ex(rsa_keypair, 512, f4, &cb) != 0);
 	REQUIRE(key.copy(rsa_keypair));
 	BN_free(f4);
 	f4 = NULL;
