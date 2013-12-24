@@ -42,7 +42,7 @@ public:
 	virtual ~Key() {
 		release();
 	}
-	handle_type *handle() {
+	handle_type *handle() const {
 		//assert(_handle != NULL);
 		return _handle;
 	}
