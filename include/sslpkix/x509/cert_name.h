@@ -19,7 +19,10 @@ public:
 		, _is_external_handle(false)
 	{
 	}
-	CertificateName(const CertificateName& other) {
+	CertificateName(const CertificateName& other)
+		: _handle(NULL)
+		, _is_external_handle(false)
+	{
 		_handle = X509_NAME_dup(other.handle());
 		if (_handle == NULL) {
 			// std::cerr << "Failed to copy certificate name" << std::endl;

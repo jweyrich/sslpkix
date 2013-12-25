@@ -18,7 +18,10 @@ public:
 		, _version(0)
 	{
 	}
-	CertificateRequest(const CertificateRequest& other) {
+	CertificateRequest(const CertificateRequest& other)
+		: _handle(NULL)
+		, _version(0)
+	{
 		_handle = X509_REQ_dup(other.handle());
 		if (_handle == NULL) {
 			// std::cerr << "Failed to copy certificate request" << std::endl;

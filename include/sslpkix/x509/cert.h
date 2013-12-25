@@ -26,7 +26,11 @@ public:
 		, _serial(0)
 	{
 	}
-	Certificate(const Certificate& other) {
+	Certificate(const Certificate& other)
+		: _handle(NULL)
+		, _version(Version::invalid)
+		, _serial(0)
+	{
 		_handle = X509_dup(other.handle());
 		if (_handle == NULL) {
 			// std::cerr << "Failed to copy certificate" << std::endl;

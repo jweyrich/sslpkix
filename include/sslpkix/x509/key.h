@@ -38,9 +38,11 @@ public:
 		, _is_external_handle(false)
 	{
 	}
-	Key(const Key& other) {
+	Key(const Key& other)
+		: _handle(other._handle)
+		, _is_external_handle(false)
+	{
 		// Srsly OpenSSL, Y U NO HAVE EVP_PKEY_dup(EVP_PKEY*) ? :-(
-		_handle = other._handle;
 		CRYPTO_add(&_handle->references, 1, CRYPTO_LOCK_EVP_PKEY);
 		if (_handle == NULL) {
 			// std::cerr << "Failed to copy certificate" << std::endl;
