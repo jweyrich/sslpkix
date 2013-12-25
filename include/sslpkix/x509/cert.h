@@ -207,6 +207,11 @@ protected:
 	void reload_data() {
 		_version = static_cast<Version::EnumType>(X509_get_version(_handle));
 		_serial = ASN1_INTEGER_get(X509_get_serialNumber(_handle));
+		// TODO(jweyrich): Find a better way to give these warnings to the user.
+		switch (_serial) {
+			//case 0: std::cerr << "The certificate serial is possibly NULL." << std::endl; break;
+			case 0xffffffffL: std::cerr << "The certificate serial is too large to fit in a long." << std::endl; break;
+		}
 		_pubkey.set_handle(X509_get_pubkey(_handle));
 		_subject.set_handle(X509_get_subject_name(_handle));
 		_issuer.set_handle(X509_get_issuer_name(_handle));
