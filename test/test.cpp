@@ -251,6 +251,12 @@ int main(int argc, char *const argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	success = sslpkix::seed_prng();
+	if (!success) {
+		std::cerr << "ERROR: Failed to seed the PRNG." << std::endl;
+		exit(EXIT_FAILURE);
+	}
+
 	int result = Catch::Session().run(argc, argv);
 
 	sslpkix::shutdown();
