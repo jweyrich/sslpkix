@@ -52,11 +52,8 @@ DEST = $(DESTDIR)$(libdir)
 INCPATH = -Iinclude
 override LFLAGS   += -lssl -lcrypto
 override CFLAGS   += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c99
-override CXXFLAGS += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c++98
+override CXXFLAGS += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c++03
 override CPPFLAGS += -DDEBUG
-ifeq ($(CC), gcc)
-	override LFLAGS   += -rdynamic
-endif
 
 ifeq ($(PLATFORM_OS), Darwin)
 	# We disable warnings for deprecated declarations because Apple deprecated OpenSSL in Mac OS X 10.7
@@ -64,7 +61,10 @@ ifeq ($(PLATFORM_OS), Darwin)
 	override CXXFLAGS += -Wno-deprecated-declarations
 endif
 
-VERSION = 1.0
+VERSION_MAJOR = 1
+VERSION_MINOR = 0
+VERSION_PATCH = 1
+VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
 LIBNAME = libsslpkix
 TESTNAME = run_tests
 
@@ -94,25 +94,34 @@ libsslpkix: CPPFLAGS += -DSSLPKIX_LIBRARY
 libsslpkix: CFLAGS += -fPIC
 libsslpkix: CXXFLAGS += -fPIC
 libsslpkix: $(libsslpkix_OBJS)
-	# @echo "Building static library: $(libsslpkix_BUILDDIR)/$(LIBNAME).a"
-	# $(AR) cqv $(libsslpkix_BUILDDIR)/$(LIBNAME).a $^
-	# $(RANLIB) $(libsslpkix_BUILDDIR)/$(LIBNAME).a
-	# $(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).a $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).a
+	@# @echo "Building static library: $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).a"
+	@# $(AR) cqv $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).a $^
+	@# $(RANLIB) $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).a
+	@# major.a -> version.a
+	@# $(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).a $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION_MAJOR).a
+	@# .a -> major.a
+	@# $(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION_MAJOR).a $(libsslpkix_BUILDDIR)/$(LIBNAME).a
 ifeq ($(PLATFORM_OS), Linux)
-	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).so'
-	$(LINK) -shared -Wl,-soname,$(LIBNAME).so.1 $(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).so $^
-	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).so $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION)
+	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION)'
+	$(LINK) -shared -Wl,-soname,$(LIBNAME).so.$(VERSION_MAJOR) $(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION) $^
+	@# .so.major -> .so.version
+	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION) $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION_MAJOR)
+	@# .so -> .so.major
+	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION_MAJOR) $(libsslpkix_BUILDDIR)/$(LIBNAME).so
 else ifeq ($(PLATFORM_OS), Darwin)
-	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib'
+	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dylib'
 	$(LINK) -headerpad_max_install_names -dynamiclib \
 		-flat_namespace -install_name $(LIBNAME).$(VERSION).dylib \
-		-current_version $(VERSION) -compatibility_version $(VERSION) \
-		$(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib $^
-	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dylib
+		-current_version $(VERSION) -compatibility_version $(VERSION_MAJOR).0 \
+		$(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dylib $^
+	@# major.dylib -> version.dylib
+	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dylib $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION_MAJOR).dylib
+	@# .dylib -> major.dylib
+	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION_MAJOR).dylib $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib
 else ifeq ($(PLATFORM_OS), CYGWIN)
 	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).dll'
 	$(LINK) -shared $(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).dll $^
-	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).dll $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dll
+	@# TODO: Use windres to embed a resource with version information into the DLL?
 endif
 
 $(libsslpkix_BUILDDIR)/%.o: %.c
@@ -126,9 +135,9 @@ $(libsslpkix_BUILDDIR)/%.o: %.cpp
 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCPATH) -o $@ $<
 
 install: installdirs
-	#$(INSTALL_DATA) $(libsslpkix_BUILDDIR)/$(LIBNAME).a $(DEST)/$(LIBNAME).a.$(VERSION)
-	#cd $(DEST); $(SYMLINK) $(LIBNAME).a.$(VERSION) $(LIBNAME).a
-	#cd $(DEST); $(SYMLINK) $(LIBNAME).a.$(VERSION) $(LIBNAME).a.1
+	@#$(INSTALL_DATA) $(libsslpkix_BUILDDIR)/$(LIBNAME).a $(DEST)/$(LIBNAME).a.$(VERSION)
+	@#cd $(DEST); $(SYMLINK) $(LIBNAME).a.$(VERSION) $(LIBNAME).a
+	@#cd $(DEST); $(SYMLINK) $(LIBNAME).a.$(VERSION) $(LIBNAME).a.1
 ifeq ($(PLATFORM_OS), Linux)
 	$(INSTALL_DATA) $(libsslpkix_BUILDDIR)/$(LIBNAME).so $(DEST)/$(LIBNAME).so.$(VERSION)
 	cd $(DEST); $(SYMLINK) $(LIBNAME).so.$(VERSION) $(LIBNAME).so
