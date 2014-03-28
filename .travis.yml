@@ -19,4 +19,7 @@ script:
   - make clean all
   - sudo make install
   - cd build
+  # On Linux, the `run_tests` binary is linked against `./libsslpkix.so.X`
+  # so we need to set `LD_LIBRARY_PATH` to the current directory.
+  - export LD_LIBRARY_PATH=.
   - ./run_tests
