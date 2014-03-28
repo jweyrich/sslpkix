@@ -1,10 +1,7 @@
-Copyright (c) 2010 Jardel Weyrich <jweyrich at gmail dot com>
-All rights reserved.
-
 DESCRIPTION
 -----------
 
-SSLPKIX is a simple C++ wrapper for handling digital certificates using OpenSSL.
+A dead simple to use C++ wrapper for handling digital certificates using OpenSSL. 
 
 DEPENDENCIES
 ------------
@@ -26,3 +23,6 @@ BUILD STATUS
 ------------
 
 [![Build Status](https://travis-ci.org/jweyrich/sslpkix.png)](https://travis-ci.org/jweyrich/sslpkix)
+
+Copyright (c) 2010 Jardel Weyrich <jweyrich at gmail dot com>
+All rights reserved.
