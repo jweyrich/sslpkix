@@ -88,7 +88,7 @@ test: INCPATH += -Ilib/Catch/include
 test: LFLAGS += -L$(libsslpkix_BUILDDIR) -lsslpkix
 test: $(test_OBJS)
 	@echo 'Building test binary: $(libsslpkix_BUILDDIR)/$(TESTNAME)'
-	$(LINK) $(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(TESTNAME) $(test_OBJS)
+	$(LINK) -o $(libsslpkix_BUILDDIR)/$(TESTNAME) $(test_OBJS) $(LFLAGS)
 
 libsslpkix: CPPFLAGS += -DSSLPKIX_LIBRARY
 libsslpkix: CFLAGS += -fPIC
@@ -103,36 +103,36 @@ libsslpkix: $(libsslpkix_OBJS)
 	@# $(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION_MAJOR).a $(libsslpkix_BUILDDIR)/$(LIBNAME).a
 ifeq ($(PLATFORM_OS), Linux)
 	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION)'
-	$(LINK) -shared -Wl,-soname,$(LIBNAME).so.$(VERSION_MAJOR) $(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION) $^
+	$(LINK) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION) $^ $(LFLAGS) -shared -Wl,-soname,$(LIBNAME).so.$(VERSION_MAJOR)
 	@# .so.major -> .so.version
 	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION) $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION_MAJOR)
 	@# .so -> .so.major
 	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).so.$(VERSION_MAJOR) $(libsslpkix_BUILDDIR)/$(LIBNAME).so
 else ifeq ($(PLATFORM_OS), Darwin)
 	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dylib'
-	$(LINK) -headerpad_max_install_names -dynamiclib \
+	$(LINK) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dylib $^ $(LFLAGS) \
+		-headerpad_max_install_names -dynamiclib \
 		-flat_namespace -install_name $(LIBNAME).$(VERSION).dylib \
-		-current_version $(VERSION) -compatibility_version $(VERSION_MAJOR).0 \
-		$(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dylib $^
+		-current_version $(VERSION) -compatibility_version $(VERSION_MAJOR).0
 	@# major.dylib -> version.dylib
 	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION).dylib $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION_MAJOR).dylib
 	@# .dylib -> major.dylib
 	$(SYMLINK) $(libsslpkix_BUILDDIR)/$(LIBNAME).$(VERSION_MAJOR).dylib $(libsslpkix_BUILDDIR)/$(LIBNAME).dylib
 else ifeq ($(PLATFORM_OS), CYGWIN)
 	@echo 'Building shared library: $(libsslpkix_BUILDDIR)/$(LIBNAME).dll'
-	$(LINK) -shared $(LFLAGS) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).dll $^
+	$(LINK) -o $(libsslpkix_BUILDDIR)/$(LIBNAME).dll $^ $(LFLAGS) -shared
 	@# TODO: Use windres to embed a resource with version information into the DLL?
 endif
 
 $(libsslpkix_BUILDDIR)/%.o: %.c
 	@echo 'Building file: $<'
 	@$(CHK_DIR_EXISTS) $(dir $@) || $(MKDIR) $(dir $@)
-	$(CC) -c $(CFLAGS) $(CPPFLAGS) $(INCPATH) -o $@ $<
+	$(CC) -c -o $@ $< $(CFLAGS) $(CPPFLAGS) $(INCPATH)
 
 $(libsslpkix_BUILDDIR)/%.o: %.cpp
 	@echo 'Building file: $<'
 	@$(CHK_DIR_EXISTS) $(dir $@) || $(MKDIR) $(dir $@)
-	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INCPATH) -o $@ $<
+	$(CXX) -c -o $@ $< $(CXXFLAGS) $(CPPFLAGS) $(INCPATH)
 
 install: installdirs
 	@#$(INSTALL_DATA) $(libsslpkix_BUILDDIR)/$(LIBNAME).a $(DEST)/$(LIBNAME).a.$(VERSION)
