@@ -73,7 +73,7 @@ int verify_callback(int ok, X509_STORE_CTX *ctx) {
 		X509 *current_cert = X509_STORE_CTX_get_current_cert(ctx);
 		if (current_cert) {
 			char buf[256];
-			X509_NAME_oneline(X509_get_subject_name(ctx->current_cert), buf, sizeof(buf));
+			X509_NAME_oneline(X509_get_subject_name(current_cert), buf, sizeof(buf));
 			fprintf(stderr, "%s\n", buf);
 		}
 		{

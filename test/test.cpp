@@ -73,9 +73,23 @@ TEST_CASE("certificate/creation/1", "Certificate creation")
 	BIGNUM *f4 = BN_new();
 	REQUIRE(f4 != NULL);
 	REQUIRE(BN_set_word(f4, RSA_F4) != 0); // Use the fourth Fermat Number
-	BN_GENCB cb;
-	BN_GENCB_set(&cb, prime_generation_callback, NULL);
-	REQUIRE(RSA_generate_key_ex(rsa_keypair, 1024, f4, &cb) != 0);
+
+
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+	BN_GENCB *cb = BN_GENCB_new();
+	REQUIRE(cb != NULL);
+#else
+	BN_GENCB autocb;
+	BN_GENCB *cb = &autocb;
+#endif
+	BN_GENCB_set(cb, prime_generation_callback, NULL);
+	REQUIRE(RSA_generate_key_ex(rsa_keypair, 1024, f4, cb) != 0);
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+	BN_GENCB_free(cb);
+#endif
+
+
 	REQUIRE(key.copy(rsa_keypair));
 	BN_free(f4);
 	f4 = NULL;
@@ -200,9 +214,20 @@ TEST_CASE("key/generation/rsa", "RSA key generation")
 	BIGNUM *f4 = BN_new();
 	REQUIRE(f4 != NULL);
 	REQUIRE(BN_set_word(f4, RSA_F4) != 0); // Use the fourth Fermat Number
-	BN_GENCB cb;
-	BN_GENCB_set(&cb, prime_generation_callback, NULL);
-	REQUIRE(RSA_generate_key_ex(rsa_keypair, 512, f4, &cb) != 0);
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+	BN_GENCB *cb = BN_GENCB_new();
+	REQUIRE(cb != NULL);
+#else
+	BN_GENCB autocb;
+	BN_GENCB *cb = &autocb;
+#endif
+	BN_GENCB_set(cb, prime_generation_callback, NULL);
+	REQUIRE(RSA_generate_key_ex(rsa_keypair, 512, f4, cb) != 0);
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+	BN_GENCB_free(cb);
+#endif
+
 	REQUIRE(key.copy(rsa_keypair));
 	BN_free(f4);
 	f4 = NULL;
@@ -218,9 +243,9 @@ TEST_CASE("key/generation/rsa", "RSA key generation")
 TEST_CASE("certificate_name/extensions", "CertificateName extension")
 {
 	int nid;
-	const char *oid = "1.2.3.4.5.31";
-	const char *short_name = "CTE";
-	const char *long_name = "customTextEntry";
+	const char *oid = "1.2.3.4.5.32"; // Cannot use an existing OID.
+	const char *short_name = "CTE2"; // Cannot use an existing short name.
+	const char *long_name = "customTextEntry2"; // Cannot use an existing long name
 	const char *value = "Some value here";
 
 	REQUIRE(sslpkix::add_custom_object(oid, short_name, long_name, &nid));

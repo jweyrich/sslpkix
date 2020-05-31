@@ -1,5 +1,6 @@
 #pragma once
 
+#include <openssl/opensslv.h>
 #include <openssl/evp.h>
 
 namespace sslpkix {
@@ -18,11 +19,15 @@ public:
 		TYPE_MD5 = 3,
 		#endif
 		#ifndef OPENSSL_NO_SHA
+		#  if OPENSSL_VERSION_NUMBER < 0x10100000L
 		TYPE_SHA = 4,
+		#  endif
 		TYPE_SHA1 = 5,
+		#  if OPENSSL_VERSION_NUMBER < 0x10100000L
 		TYPE_DSS = 6,
 		TYPE_DSS1 = 7,
 		TYPE_ECDSA = 8,
+		#  endif
 		#endif
 		#ifndef OPENSSL_NO_SHA256
 		TYPE_SHA224 = 9,
@@ -57,11 +62,15 @@ public:
 			case TYPE_MD5: return EVP_md5();
 			#endif
 			#ifndef OPENSSL_NO_SHA
+			#  if OPENSSL_VERSION_NUMBER < 0x10100000L
 			case TYPE_SHA: return EVP_sha();
+			#  endif
 			case TYPE_SHA1: return EVP_sha1();
+			#  if OPENSSL_VERSION_NUMBER < 0x10100000L
 			case TYPE_DSS: return EVP_dss();
 			case TYPE_DSS1: return EVP_dss1();
 			case TYPE_ECDSA: return EVP_ecdsa();
+			#  endif
 			#endif
 			#ifndef OPENSSL_NO_SHA256
 			case TYPE_SHA224: return EVP_sha224();

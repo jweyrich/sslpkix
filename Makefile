@@ -52,7 +52,7 @@ DEST = $(DESTDIR)$(libdir)
 INCPATH = -Iinclude
 override LFLAGS   += -lssl -lcrypto
 override CFLAGS   += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c99
-override CXXFLAGS += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c++03
+override CXXFLAGS += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c++11
 override CPPFLAGS += -DDEBUG
 
 ifeq ($(PLATFORM_OS), Darwin)
@@ -169,4 +169,4 @@ uninstall:
 		$(DEST)/$(LIBNAME)*.dylib
 
 clean:
-	$(RM_DIR) $(libsslpkix_BUILDDIR)
+	$(RM_DIR) $(libsslpkix_BUILDDIR)/*

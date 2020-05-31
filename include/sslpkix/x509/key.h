@@ -2,6 +2,7 @@
 
 //#include <cassert>
 #include <iostream>
+#include <openssl/opensslv.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include "sslpkix/iosink.h"
@@ -42,12 +43,20 @@ public:
 		: _handle(other._handle)
 		, _is_external_handle(false)
 	{
-		// Srsly OpenSSL, Y U NO HAVE EVP_PKEY_dup(EVP_PKEY*) ? :-(
-		CRYPTO_add(&_handle->references, 1, CRYPTO_LOCK_EVP_PKEY);
 		if (_handle == NULL) {
 			// std::cerr << "Failed to copy certificate" << std::endl;
 			throw std::bad_alloc();
 		}
+
+		// Srsly OpenSSL, Y U NO HAVE EVP_PKEY_dup(EVP_PKEY*) ? :-(
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+		CRYPTO_add(&_handle->references, 1, CRYPTO_LOCK_EVP_PKEY);
+#else
+		int ret = EVP_PKEY_up_ref(_handle);
+		if (ret == 0) { // Error
+			throw std::runtime_error("Failed to increment reference count for EVP_PKEY");
+		}
+#endif
 		//reload_data();
 	}
 	Key& operator=(Key other) {
@@ -75,7 +84,11 @@ public:
 		return _handle != NULL;
 	}
 	Cipher::EnumCipher algorithm() const {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 		int algorithm = EVP_PKEY_type(_handle->type);
+#else
+		int algorithm = EVP_PKEY_base_id(_handle);
+#endif
 		switch (algorithm) {
 			#ifndef OPENSSL_NO_RSA
 			case EVP_PKEY_RSA: return Cipher::RSA;
