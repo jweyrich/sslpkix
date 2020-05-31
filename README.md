@@ -6,7 +6,7 @@ A dead simple to use C++ wrapper for handling digital certificates using OpenSSL
 DEPENDENCIES
 ------------
 
-OpenSSL 0.9.8 or newer.
+OpenSSL 0.9.8 or newer, including OpenSSL 1.1.
 
 LICENSE
 -------
