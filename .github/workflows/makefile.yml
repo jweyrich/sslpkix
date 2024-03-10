@@ -1,0 +1,33 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    # - name: configure
+    #   run: ./configure
+    - name: Install Catch2
+      run: |
+        git clone --depth 1 --branch v3.5.3 --single-branch https://github.com/catchorg/Catch2.git lib/Catch2
+        cd lib/Catch2
+        cmake -Bbuild -H. -DBUILD_TESTING=OFF
+        DESTDIR=installdir cmake --build build/ --target install
+    - name: make
+      run: make
+    # - name: make check
+    #   run: make check
+    # - name: make distcheck
+    #   run: make distcheck
+    - name: run unit tests
+      run: |
+        cd build
+        LD_LIBRARY_PATH=. ./run_tests

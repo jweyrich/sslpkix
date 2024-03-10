@@ -51,8 +51,8 @@ endif
 DEST = $(DESTDIR)$(libdir)
 INCPATH = -Iinclude
 override LFLAGS   += -lssl -lcrypto
-override CFLAGS   += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c99
-override CXXFLAGS += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c++11
+override CFLAGS   += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c11
+override CXXFLAGS += -pipe -O0 -g3 -Wall -Wextra -pedantic -fmessage-length=0 -std=c++14
 override CPPFLAGS += -DDEBUG
 
 ifeq ($(PLATFORM_OS), Darwin)
@@ -84,8 +84,8 @@ test_OBJS = $(addprefix ${libsslpkix_BUILDDIR}/, $(addsuffix .o, $(basename ${te
 all: libsslpkix test
 
 test: libsslpkix
-test: INCPATH += -Ilib/Catch/include
-test: LFLAGS += -L$(libsslpkix_BUILDDIR) -lsslpkix
+test: INCPATH += -Ilib/Catch2/build/installdir/usr/local/include
+test: LFLAGS += -L$(libsslpkix_BUILDDIR) -lsslpkix lib/Catch2/build/installdir/usr/local/lib/libCatch2.a
 test: $(test_OBJS)
 	@echo 'Building test binary: $(libsslpkix_BUILDDIR)/$(TESTNAME)'
 	$(LINK) -o $(libsslpkix_BUILDDIR)/$(TESTNAME) $(test_OBJS) $(LFLAGS)

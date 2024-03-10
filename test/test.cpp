@@ -1,10 +1,12 @@
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <sstream>
+
 #include "sslpkix/sslpkix.h"
 
-#define CATCH_CONFIG_RUNNER
-#include "catch.hpp"
-
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 static int prime_generation_callback(int p, int n, BN_GENCB *arg) {
 	(void)n;
