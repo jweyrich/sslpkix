@@ -39,7 +39,7 @@ if(TEST_SOURCES OR EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test)
 endif()
 
 # Project configuration
-set(LIBNAME "libsslpkix")
+set(LIBNAME "sslpkix")
 set(TESTNAME "run_tests")
 
 # Build directories
