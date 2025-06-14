@@ -1,33 +1,307 @@
-name: C/C++ CI
+name: Build and Test libsslpkix
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ master, develop ]
+    tags: [ 'v*' ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ master, develop ]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
 
 jobs:
-  build:
+  build-and-test:
+    name: ${{ matrix.os }} - ${{ matrix.compiler }}
+    runs-on: ${{ matrix.os }}
 
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux builds
+          - os: ubuntu-22.04
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+            cmake_args: ""
+          - os: ubuntu-22.04
+            compiler: clang
+            cc: clang
+            cxx: clang++
+            cmake_args: ""
+
+          # macOS builds
+          - os: macos-13
+            compiler: clang
+            cc: clang
+            cxx: clang++
+            cmake_args: ""
+          - os: macos-14  # Apple Silicon
+            compiler: clang
+            cc: clang
+            cxx: clang++
+            cmake_args: ""
+
+          # Windows builds
+          # - os: windows-2022
+          #   compiler: msvc
+          #   cc: cl
+          #   cxx: cl
+          #   cmake_args: "-G \"Visual Studio 17 2022\" -A x64"
+          # - os: windows-2022
+          #   compiler: mingw
+          #   cc: gcc
+          #   cxx: g++
+          #   cmake_args: "-G \"MinGW Makefiles\""
 
     steps:
-    - uses: actions/checkout@v3
-    # - name: configure
-    #   run: ./configure
-    - name: Install Catch2
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up build environment (Linux)
+      if: runner.os == 'Linux'
       run: |
-        git clone --depth 1 --branch v3.5.3 --single-branch https://github.com/catchorg/Catch2.git lib/Catch2
-        cd lib/Catch2
-        cmake -Bbuild -H. -DBUILD_TESTING=OFF
-        DESTDIR=installdir cmake --build build/ --target install
-    - name: make
-      run: make
-    # - name: make check
-    #   run: make check
-    # - name: make distcheck
-    #   run: make distcheck
-    - name: run unit tests
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          libssl-dev \
+          pkg-config \
+          ninja-build
+
+    - name: Set up build environment (macOS)
+      if: runner.os == 'macOS'
       run: |
-        cd build
-        LD_LIBRARY_PATH=. ./run_tests
+        brew update
+        brew install cmake openssl@3 ninja
+        echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
+
+    - name: Set up build environment (Windows MSVC)
+      if: matrix.os == 'windows-2022' && matrix.compiler == 'msvc'
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Set up build environment (Windows MinGW)
+      if: matrix.os == 'windows-2022' && matrix.compiler == 'mingw'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-openssl
+          mingw-w64-x86_64-pkg-config
+
+    - name: Install OpenSSL (Windows MSVC)
+      if: matrix.os == 'windows-2022' && matrix.compiler == 'msvc'
+      run: |
+        vcpkg install openssl:x64-windows
+        echo "CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
+
+    - name: Set compiler environment
+      if: runner.os != 'Windows' || matrix.compiler == 'mingw'
+      run: |
+        echo "CC=${{ matrix.cc }}" >> $GITHUB_ENV
+        echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
+
+    - name: Create build directory
+      run: cmake -E make_directory ${{ github.workspace }}/build
+
+    - name: Configure CMake (Unix)
+      if: runner.os != 'Windows' || matrix.compiler == 'mingw'
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        cmake .. \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install \
+          ${{ matrix.cmake_args }}
+
+    - name: Configure CMake (Windows MSVC)
+      if: matrix.os == 'windows-2022' && matrix.compiler == 'msvc'
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        cmake .. `
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+          -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install" `
+          -DCMAKE_TOOLCHAIN_FILE="$env:CMAKE_TOOLCHAIN_FILE" `
+          ${{ matrix.cmake_args }}
+
+    - name: Build (Unix/MinGW)
+      if: runner.os != 'Windows' || matrix.compiler == 'mingw'
+      working-directory: ${{ github.workspace }}/build
+      run: cmake --build . --config ${{ env.BUILD_TYPE }} #--parallel
+
+    - name: Build (Windows MSVC)
+      if: matrix.os == 'windows-2022' && matrix.compiler == 'msvc'
+      working-directory: ${{ github.workspace }}/build
+      run: cmake --build . --config ${{ env.BUILD_TYPE }} #--parallel
+
+    - name: Run tests
+      working-directory: ${{ github.workspace }}/build
+      run: ctest --output-on-failure --build-config ${{ env.BUILD_TYPE }} #--parallel
+      continue-on-error: false
+
+    - name: Install
+      working-directory: ${{ github.workspace }}/build
+      run: cmake --install . --config ${{ env.BUILD_TYPE }}
+
+    - name: Create package name
+      id: package
+      run: |
+        # Determine version/ref for package naming
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          VERSION="pr${{ github.event.pull_request.number }}"
+        elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          VERSION="${{ github.ref_name }}"
+        elif [[ "${{ github.ref }}" == refs/heads/* ]]; then
+          VERSION="${{ github.ref_name }}-${{ github.sha }}"
+          VERSION="${VERSION:0:50}"  # Truncate if too long
+        else
+          VERSION="unknown-${{ github.sha }}"
+          VERSION="${VERSION:0:50}"
+        fi
+
+        # Sanitize version string for filename
+        VERSION=$(echo "$VERSION" | sed 's/[^a-zA-Z0-9._-]/-/g')
+
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          echo "name=libsslpkix-${VERSION}-${{ matrix.os }}-${{ matrix.compiler }}" >> $GITHUB_OUTPUT
+          echo "extension=zip" >> $GITHUB_OUTPUT
+        else
+          echo "name=libsslpkix-${VERSION}-${{ matrix.os }}-${{ matrix.compiler }}" >> $GITHUB_OUTPUT
+          echo "extension=tar.gz" >> $GITHUB_OUTPUT
+        fi
+      shell: bash
+
+    - name: Package artifacts (Unix)
+      if: runner.os != 'Windows'
+      working-directory: ${{ github.workspace }}
+      run: |
+        tar -czf ${{ steps.package.outputs.name }}.${{ steps.package.outputs.extension }} \
+          -C install .
+
+    - name: Package artifacts (Windows)
+      if: runner.os == 'Windows'
+      working-directory: ${{ github.workspace }}
+      run: |
+        Compress-Archive -Path install/* -DestinationPath ${{ steps.package.outputs.name }}.${{ steps.package.outputs.extension }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.package.outputs.name }}
+        path: ${{ github.workspace }}/${{ steps.package.outputs.name }}.${{ steps.package.outputs.extension }}
+        retention-days: 30
+
+    - name: Upload to release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ github.workspace }}/${{ steps.package.outputs.name }}.${{ steps.package.outputs.extension }}
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          clang-format \
+          cppcheck \
+          libssl-dev
+
+    - name: Check code formatting
+      run: |
+        find src include test -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | \
+        xargs clang-format --dry-run --Werror
+      continue-on-error: true
+
+    - name: Run static analysis
+      run: |
+        cppcheck --enable=all --inconclusive --std=c99 --std=c++11 \
+          --suppress=missingIncludeSystem \
+          --suppress=unusedFunction \
+          src/ include/ test/ || true
+      continue-on-error: true
+
+  documentation:
+    name: Generate Documentation
+    runs-on: ubuntu-22.04
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Doxygen
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y doxygen graphviz
+
+    - name: Generate documentation
+      run: |
+        if [ -f Doxyfile ]; then
+          doxygen Doxyfile
+        else
+          echo "No Doxyfile found, skipping documentation generation"
+        fi
+
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main' && hashFiles('docs/html/index.html') != ''
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/html
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  notify:
+    name: Notify Build Status
+    runs-on: ubuntu-22.04
+    needs: [build-and-test, code-quality]
+    if: always()
+
+    steps:
+    - name: Notify success
+      if: needs.build-and-test.result == 'success'
+      run: |
+        echo "✅ Build and tests passed successfully!"
+
+    - name: Notify failure
+      if: needs.build-and-test.result == 'failure'
+      run: |
+        echo "❌ Build or tests failed!"
+        exit 1

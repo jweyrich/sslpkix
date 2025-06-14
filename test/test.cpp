@@ -1,12 +1,11 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <sstream>
-
 #include "sslpkix/sslpkix.h"
 
-#include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_session.hpp>
+
 
 static int prime_generation_callback(int p, int n, BN_GENCB *arg) {
 	(void)n;
@@ -23,7 +22,7 @@ static int prime_generation_callback(int p, int n, BN_GENCB *arg) {
 	return 1;
 }
 
-TEST_CASE("certificate/creation/1", "Certificate creation")
+TEST_CASE("Certificate creation", "[certificate][creation]")
 {
 	//
 	// Create issuer
@@ -146,7 +145,7 @@ TEST_CASE("certificate/creation/1", "Certificate creation")
 	REQUIRE(certCopy2 == cert);
 }
 
-TEST_CASE("iosink/operators", "IoSink operators")
+TEST_CASE("IoSink operators", "[iosink][operators]")
 {
 	sslpkix::FileSink cert_file;
 	REQUIRE(cert_file.open("JohnDoe.crt", "rb"));
@@ -189,7 +188,7 @@ TEST_CASE("iosink/operators", "IoSink operators")
 	key_mem.close();
 }
 
-TEST_CASE("certificate_name/entries", "CertificateName entries")
+TEST_CASE("CertificateName entries", "[certificate_name][entries]")
 {
 	sslpkix::CertificateName name;
 	REQUIRE(name.create());
@@ -207,7 +206,7 @@ TEST_CASE("certificate_name/entries", "CertificateName entries")
 	REQUIRE(name.state() == "SP");
 }
 
-TEST_CASE("key/generation/rsa", "RSA key generation")
+TEST_CASE("RSA key generation", "[key][generation][rsa]")
 {
 	sslpkix::PrivateKey key;
 	REQUIRE(key.create());
@@ -242,7 +241,7 @@ TEST_CASE("key/generation/rsa", "RSA key generation")
 
 }
 
-TEST_CASE("certificate_name/extensions", "CertificateName extension")
+TEST_CASE("CertificateName extension", "[certificate_name][extensions]")
 {
 	int nid;
 	const char *oid = "1.2.3.4.5.32"; // Cannot use an existing OID.
@@ -270,7 +269,7 @@ TEST_CASE("certificate_name/extensions", "CertificateName extension")
 	REQUIRE(nameCopy2 == name);
 }
 
-int main(int argc, char *const argv[])
+int main(int argc, char *argv[])
 {
 	bool success = sslpkix::startup();
 	if (!success) {

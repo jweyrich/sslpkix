@@ -1,2 +1,20 @@
-/build/
-/lib/Catch2
+build/
+# CMake build directories
+build/
+builds/
+cmake-build-*/
+
+# CMake cache and files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# CMake testing
+Testing/
+CTestTestfile.cmake
+
+# CMake packaging
+CPack*
+_CPack_Packages/
