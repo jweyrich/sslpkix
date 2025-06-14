@@ -153,11 +153,27 @@ jobs:
     - name: Create package name
       id: package
       run: |
+        # Determine version/ref for package naming
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          VERSION="pr${{ github.event.pull_request.number }}"
+        elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          VERSION="${{ github.ref_name }}"
+        elif [[ "${{ github.ref }}" == refs/heads/* ]]; then
+          VERSION="${{ github.ref_name }}-${{ github.sha }}"
+          VERSION="${VERSION:0:50}"  # Truncate if too long
+        else
+          VERSION="unknown-${{ github.sha }}"
+          VERSION="${VERSION:0:50}"
+        fi
+
+        # Sanitize version string for filename
+        VERSION=$(echo "$VERSION" | sed 's/[^a-zA-Z0-9._-]/-/g')
+
         if [ "${{ runner.os }}" = "Windows" ]; then
-          echo "name=libsslpkix-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.compiler }}" >> $GITHUB_OUTPUT
+          echo "name=libsslpkix-${VERSION}-${{ matrix.os }}-${{ matrix.compiler }}" >> $GITHUB_OUTPUT
           echo "extension=zip" >> $GITHUB_OUTPUT
         else
-          echo "name=libsslpkix-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.compiler }}" >> $GITHUB_OUTPUT
+          echo "name=libsslpkix-${VERSION}-${{ matrix.os }}-${{ matrix.compiler }}" >> $GITHUB_OUTPUT
           echo "extension=tar.gz" >> $GITHUB_OUTPUT
         fi
       shell: bash
