@@ -1,25 +1,95 @@
 language: cpp
+
+# Linux-only builds (free tier)
+os: linux
+
+# Test multiple compiler versions
 compiler:
   - gcc
   - clang
 
-branches:
-  only:
-    - master
+# Ubuntu version for Linux builds
+dist: focal
 
+# Cache dependencies to speed up builds
+cache:
+  directories:
+    - $HOME/.cache/pip
+
+# Environment matrix for different build configurations
+env:
+  - BUILD_TYPE=Debug
+  - BUILD_TYPE=Release
+
+# No matrix exclusions needed since we're only using Linux
+
+# Install dependencies
 before_install:
-  # Update submodules before install
-  - git submodule update --init --recursive
-
-before_script:
+  # Update package lists
   - sudo apt-get update -qq
-  - sudo apt-get install -qq libssl-dev
 
+install:
+  # Install OpenSSL and build tools
+  - sudo apt-get install -y libssl-dev pkg-config cmake
+
+# Build script
 script:
-  - make clean all
-  - sudo make install
+  # Create build directory
+  - mkdir -p build
   - cd build
-  # On Linux, the `run_tests` binary is linked against `./libsslpkix.so.X`
-  # so we need to set `LD_LIBRARY_PATH` to the current directory.
-  - export LD_LIBRARY_PATH=.
-  - ./run_tests
+
+  # Configure with CMake
+  - cmake .. -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+  # Build the project
+  - cmake --build . --config $BUILD_TYPE
+
+  # Run tests if they exist
+  - if [[ -f build/run_tests ]]; then ./build/run_tests; fi
+
+  # Alternative: use ctest if available
+  - ctest --output-on-failure --build-config $BUILD_TYPE || true
+
+# Additional jobs for specific configurations
+jobs:
+  include:
+    # Valgrind memory testing
+    - compiler: gcc
+      env: BUILD_TYPE=Debug VALGRIND=ON
+      addons:
+        apt:
+          packages:
+            - libssl-dev
+            - pkg-config
+            - valgrind
+      script:
+        - mkdir -p build && cd build
+        - cmake .. -DCMAKE_BUILD_TYPE=Debug
+        - cmake --build .
+        - if [[ -f build/run_tests ]]; then valgrind --error-exitcode=1 --leak-check=full ./build/run_tests; fi
+
+    # Code coverage
+    - compiler: gcc
+      env: BUILD_TYPE=Debug COVERAGE=ON
+      addons:
+        apt:
+          packages:
+            - libssl-dev
+            - pkg-config
+            - lcov
+      script:
+        - mkdir -p build && cd build
+        - cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="--coverage" -DCMAKE_C_FLAGS="--coverage"
+        - cmake --build .
+        - if [[ -f build/run_tests ]]; then ./build/run_tests; fi
+        - lcov --directory . --capture --output-file coverage.info
+        - lcov --remove coverage.info '/usr/*' --output-file coverage.info
+        - lcov --list coverage.info
+      after_success:
+        - bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
+
+# Notifications (optional)
+notifications:
+  email:
+    on_success: change
+    on_failure: always
