@@ -68,16 +68,34 @@ file(GLOB_RECURSE TEST_SOURCES "${TEST_DIR}/*.c" "${TEST_DIR}/*.cpp")
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 11)
 
-# Common compile options
-set(COMMON_COMPILE_OPTIONS
-    -pipe
-    -O0
-    -g3
-    -Wall
-    -Wextra
-    -pedantic
-    -fmessage-length=0
-)
+# Common compile options - compiler-specific
+set(COMMON_COMPILE_OPTIONS)
+
+# GCC and Clang compatible options
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    list(APPEND COMMON_COMPILE_OPTIONS
+        -pipe
+        -O0
+        -g3
+        -Wall
+        -Wextra
+        -pedantic
+        -fmessage-length=0
+    )
+# MSVC specific options
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    list(APPEND COMMON_COMPILE_OPTIONS
+        /Od        # Equivalent to -O0 (disable optimization)
+        /Zi        # Equivalent to -g3 (debug info)
+        /W4        # Equivalent to -Wall -Wextra (high warning level)
+        /permissive-  # Similar to -pedantic (strict conformance)
+    )
+    # MSVC-specific definitions
+    add_compile_definitions(
+        _CRT_SECURE_NO_WARNINGS
+        WIN32_LEAN_AND_MEAN
+    )
+endif()
 
 # Platform-specific compile options
 if(APPLE)
@@ -142,6 +160,11 @@ elseif(APPLE)
     set_target_properties(${LIBNAME} PROPERTIES
         LINK_FLAGS "-headerpad_max_install_names -flat_namespace"
     )
+elseif(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    # MSVC-specific settings for shared library
+    set_target_properties(${LIBNAME} PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
 endif()
 
 # Create test executable (if test sources exist)
@@ -155,11 +178,14 @@ if(TEST_SOURCES)
             ${OpenSSL_INCLUDE_DIRS}
     )
 
-    # Test compile options - matching test Makefile flags
-    target_compile_options(${TESTNAME} PRIVATE
-        ${COMMON_COMPILE_OPTIONS}
-        -rdynamic  # Matching the test Makefile
-    )
+    # Test compile options - compiler-specific
+    target_compile_options(${TESTNAME} PRIVATE ${COMMON_COMPILE_OPTIONS})
+
+    # Add -rdynamic only for GCC/Clang on Unix-like systems
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND NOT WIN32)
+        target_compile_options(${TESTNAME} PRIVATE -rdynamic)
+        target_link_libraries(${TESTNAME} PRIVATE ${CMAKE_DL_LIBS})
+    endif()
 
     # Test compile definitions
     target_compile_definitions(${TESTNAME} PRIVATE DEBUG)
@@ -169,7 +195,6 @@ if(TEST_SOURCES)
         PRIVATE
             ${LIBNAME}
             Catch2::Catch2WithMain  # Catch2 v3 provides main automatically
-            ${CMAKE_DL_LIBS}  # For -rdynamic functionality
             OpenSSL::SSL
             OpenSSL::Crypto
     )
