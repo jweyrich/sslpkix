@@ -28,18 +28,11 @@ cmake --build build --target test-run
 cd build && ctest --verbose
 ```
 
-# License
-
-This software is released under the Modified BSD License.
-
 # Acknowledgments
 
 This product includes software developed by the OpenSSL Project
 for use in the OpenSSL Toolkit (http://www.openssl.org/)
 
-# Build status
+# License
 
-[![Build Status](https://travis-ci.org/jweyrich/sslpkix.png)](https://travis-ci.org/jweyrich/sslpkix)
-
-Copyright (c) 2010 Jardel Weyrich <jweyrich at gmail dot com>
-All rights reserved.
+This software is released under the Modified BSD License.
