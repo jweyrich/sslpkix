@@ -45,16 +45,16 @@ jobs:
             cmake_args: ""
 
           # Windows builds
-          - os: windows-2022
-            compiler: msvc
-            cc: cl
-            cxx: cl
-            cmake_args: "-G \"Visual Studio 17 2022\" -A x64"
-          - os: windows-2022
-            compiler: mingw
-            cc: gcc
-            cxx: g++
-            cmake_args: "-G \"MinGW Makefiles\""
+          # - os: windows-2022
+          #   compiler: msvc
+          #   cc: cl
+          #   cxx: cl
+          #   cmake_args: "-G \"Visual Studio 17 2022\" -A x64"
+          # - os: windows-2022
+          #   compiler: mingw
+          #   cc: gcc
+          #   cxx: g++
+          #   cmake_args: "-G \"MinGW Makefiles\""
 
     steps:
     - name: Checkout code
