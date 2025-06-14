@@ -31,11 +31,6 @@ jobs:
             cc: clang
             cxx: clang++
             cmake_args: ""
-          - os: ubuntu-20.04  # Additional LTS version
-            compiler: gcc
-            cc: gcc
-            cxx: g++
-            cmake_args: ""
 
           # macOS builds
           - os: macos-13
