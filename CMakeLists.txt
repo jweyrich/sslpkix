@@ -18,6 +18,11 @@ if(APPLE)
     if(OPENSSL_ROOT_DIR)
         set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR})
     endif()
+elseif(WIN32 AND MINGW)
+    # For MinGW, try common OpenSSL installation paths
+    set(OPENSSL_ROOT_DIR "C:/msys64/mingw64" "C:/mingw64" "C:/OpenSSL-Win64")
+    # Set additional hints for MinGW
+    set(OPENSSL_USE_STATIC_LIBS FALSE)
 endif()
 
 find_package(OpenSSL REQUIRED)
@@ -71,7 +76,7 @@ set(CMAKE_CXX_STANDARD 11)
 # Common compile options - compiler-specific
 set(COMMON_COMPILE_OPTIONS)
 
-# GCC and Clang compatible options
+# GCC and Clang compatible options (includes MinGW)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     list(APPEND COMMON_COMPILE_OPTIONS
         -pipe
@@ -82,6 +87,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         -pedantic
         -fmessage-length=0
     )
+    # MinGW-specific options
+    if(MINGW)
+        list(APPEND COMMON_COMPILE_OPTIONS
+            -static-libgcc
+            -static-libstdc++
+        )
+    endif()
 # MSVC specific options
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     list(APPEND COMMON_COMPILE_OPTIONS
@@ -100,6 +112,19 @@ endif()
 # Platform-specific compile options
 if(APPLE)
     list(APPEND COMMON_COMPILE_OPTIONS -Wno-deprecated-declarations)
+elseif(WIN32)
+    # Windows-specific definitions for both MSVC and MinGW
+    add_compile_definitions(
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+    )
+    if(MINGW)
+        # MinGW-specific definitions
+        add_compile_definitions(
+            _WIN32_WINNT=0x0601  # Windows 7 and later
+            WINVER=0x0601
+        )
+    endif()
 endif()
 
 # Create the shared library
@@ -118,11 +143,21 @@ if(APPLE)
         MACOSX_RPATH ON
         INSTALL_NAME_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
     )
-elseif(CYGWIN)
-    set_target_properties(${LIBNAME} PROPERTIES
-        OUTPUT_NAME "${LIBNAME}"
-        SUFFIX ".dll"
-    )
+elseif(WIN32)
+    if(MINGW)
+        # MinGW naming convention
+        set_target_properties(${LIBNAME} PROPERTIES
+            OUTPUT_NAME "${LIBNAME}"
+            PREFIX "lib"
+            SUFFIX ".dll"
+            IMPORT_SUFFIX ".dll.a"
+        )
+    elseif(CYGWIN)
+        set_target_properties(${LIBNAME} PROPERTIES
+            OUTPUT_NAME "${LIBNAME}"
+            SUFFIX ".dll"
+        )
+    endif()
 endif()
 
 # Include directories
@@ -131,7 +166,7 @@ target_include_directories(${LIBNAME}
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
-        ${OpenSSL_INCLUDE_DIRS}
+        ${OPENSSL_INCLUDE_DIR}
 )
 
 # Compile definitions
@@ -160,11 +195,20 @@ elseif(APPLE)
     set_target_properties(${LIBNAME} PROPERTIES
         LINK_FLAGS "-headerpad_max_install_names -flat_namespace"
     )
-elseif(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    # MSVC-specific settings for shared library
-    set_target_properties(${LIBNAME} PROPERTIES
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
-    )
+elseif(WIN32)
+    if(MINGW)
+        # MinGW-specific linker flags
+        set_target_properties(${LIBNAME} PROPERTIES
+            LINK_FLAGS "-Wl,--out-implib,${CMAKE_CURRENT_BINARY_DIR}/lib${LIBNAME}.dll.a"
+        )
+        # Add Windows libraries that might be needed
+        target_link_libraries(${LIBNAME} PRIVATE ws2_32 crypt32)
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        # MSVC-specific settings for shared library
+        set_target_properties(${LIBNAME} PROPERTIES
+            WINDOWS_EXPORT_ALL_SYMBOLS ON
+        )
+    endif()
 endif()
 
 # Create test executable (if test sources exist)
@@ -175,7 +219,7 @@ if(TEST_SOURCES)
     target_include_directories(${TESTNAME}
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
-            ${OpenSSL_INCLUDE_DIRS}
+            ${OPENSSL_INCLUDE_DIR}
     )
 
     # Test compile options - compiler-specific
@@ -206,6 +250,16 @@ if(TEST_SOURCES)
     set_target_properties(${TESTNAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/build
     )
+
+    # On Windows, ensure the DLL is in the same directory as the test executable
+    if(WIN32)
+        add_custom_command(TARGET ${TESTNAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:${LIBNAME}>
+            $<TARGET_FILE_DIR:${TESTNAME}>
+            COMMENT "Copying DLL to test directory"
+        )
+    endif()
 endif()
 
 # Installation
@@ -286,8 +340,8 @@ endif()
 
 # Custom targets for compatibility with original Makefile
 
-# Strip target
-if(NOT WIN32 AND NOT CYGWIN)
+# Strip target (not available on Windows)
+if(NOT WIN32)
     add_custom_target(strip-binaries
         COMMAND ${CMAKE_STRIP} $<TARGET_FILE:${LIBNAME}>
         DEPENDS ${LIBNAME}
@@ -331,6 +385,10 @@ endif()
 # Print configuration summary
 message(STATUS "Configuration Summary:")
 message(STATUS "  Platform: ${CMAKE_SYSTEM_NAME}")
+message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID}")
+if(MINGW)
+    message(STATUS "  MinGW detected: YES")
+endif()
 message(STATUS "  Version: ${PROJECT_VERSION}")
 message(STATUS "  Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "  Install prefix: ${CMAKE_INSTALL_PREFIX}")
