@@ -1,0 +1,323 @@
+cmake_minimum_required(VERSION 3.16)
+project(libsslpkix VERSION 1.0.1 LANGUAGES C CXX)
+
+# Platform detection is handled by CMAKE_SYSTEM_NAME automatically
+
+# Standard installation directories
+include(GNUInstallDirs)
+
+# Find OpenSSL
+if(APPLE)
+    # On macOS, try to find OpenSSL from Homebrew first
+    execute_process(
+        COMMAND brew --prefix openssl@3
+        OUTPUT_VARIABLE OPENSSL_ROOT_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(OPENSSL_ROOT_DIR)
+        set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR})
+    endif()
+endif()
+
+find_package(OpenSSL REQUIRED)
+
+# Fetch Catch2 for testing
+include(FetchContent)
+if(TEST_SOURCES OR EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test)
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v3.4.0  # Use a stable version
+        GIT_SHALLOW    TRUE
+    )
+
+    FetchContent_MakeAvailable(Catch2)
+
+    # Add Catch2's cmake modules to the path
+    list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+endif()
+
+# Project configuration
+set(LIBNAME "libsslpkix")
+set(TESTNAME "run_tests")
+
+# Build directories
+set(BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+# Source directories
+set(SOURCE_DIRS
+    src
+    src/openssl/apps
+    src/x509
+)
+
+set(TEST_DIR test)
+
+# Collect source files
+set(LIBRARY_SOURCES)
+foreach(dir ${SOURCE_DIRS})
+    file(GLOB_RECURSE dir_sources "${dir}/*.c" "${dir}/*.cpp")
+    list(APPEND LIBRARY_SOURCES ${dir_sources})
+endforeach()
+
+# Collect test files
+file(GLOB_RECURSE TEST_SOURCES "${TEST_DIR}/*.c" "${TEST_DIR}/*.cpp")
+
+# Compiler flags
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_CXX_STANDARD 11)
+
+# Common compile options
+set(COMMON_COMPILE_OPTIONS
+    -pipe
+    -O0
+    -g3
+    -Wall
+    -Wextra
+    -pedantic
+    -fmessage-length=0
+)
+
+# Platform-specific compile options
+if(APPLE)
+    list(APPEND COMMON_COMPILE_OPTIONS -Wno-deprecated-declarations)
+endif()
+
+# Create the shared library
+add_library(${LIBNAME} SHARED ${LIBRARY_SOURCES})
+
+# Set library properties
+set_target_properties(${LIBNAME} PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    POSITION_INDEPENDENT_CODE ON
+)
+
+# Platform-specific library naming
+if(APPLE)
+    set_target_properties(${LIBNAME} PROPERTIES
+        MACOSX_RPATH ON
+        INSTALL_NAME_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
+    )
+elseif(CYGWIN)
+    set_target_properties(${LIBNAME} PROPERTIES
+        OUTPUT_NAME "${LIBNAME}"
+        SUFFIX ".dll"
+    )
+endif()
+
+# Include directories
+target_include_directories(${LIBNAME}
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    PRIVATE
+        ${OpenSSL_INCLUDE_DIRS}
+)
+
+# Compile definitions
+target_compile_definitions(${LIBNAME}
+    PRIVATE
+        SSLPKIX_LIBRARY
+        DEBUG
+)
+
+# Compile options
+target_compile_options(${LIBNAME} PRIVATE ${COMMON_COMPILE_OPTIONS})
+
+# Link libraries
+target_link_libraries(${LIBNAME}
+    PRIVATE
+        OpenSSL::SSL
+        OpenSSL::Crypto
+)
+
+# Platform-specific linker flags
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set_target_properties(${LIBNAME} PROPERTIES
+        LINK_FLAGS "-Wl,-soname,${LIBNAME}.so.${PROJECT_VERSION_MAJOR}"
+    )
+elseif(APPLE)
+    set_target_properties(${LIBNAME} PROPERTIES
+        LINK_FLAGS "-headerpad_max_install_names -flat_namespace"
+    )
+endif()
+
+# Create test executable (if test sources exist)
+if(TEST_SOURCES)
+    add_executable(${TESTNAME} ${TEST_SOURCES})
+
+    # Test include directories - using Catch2 target instead of manual paths
+    target_include_directories(${TESTNAME}
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${OpenSSL_INCLUDE_DIRS}
+    )
+
+    # Test compile options - matching test Makefile flags
+    target_compile_options(${TESTNAME} PRIVATE
+        ${COMMON_COMPILE_OPTIONS}
+        -rdynamic  # Matching the test Makefile
+    )
+
+    # Test compile definitions
+    target_compile_definitions(${TESTNAME} PRIVATE DEBUG)
+
+    # Link test with library and Catch2
+    target_link_libraries(${TESTNAME}
+        PRIVATE
+            ${LIBNAME}
+            Catch2::Catch2WithMain  # Catch2 v3 provides main automatically
+            ${CMAKE_DL_LIBS}  # For -rdynamic functionality
+            OpenSSL::SSL
+            OpenSSL::Crypto
+    )
+
+    # Add dependency to ensure library is built first
+    add_dependencies(${TESTNAME} ${LIBNAME})
+
+    # Set test binary output directory to match original structure
+    set_target_properties(${TESTNAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/build
+    )
+endif()
+
+# Installation
+install(TARGETS ${LIBNAME}
+    EXPORT ${LIBNAME}Targets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Install headers (if they exist)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    install(DIRECTORY include/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+    )
+endif()
+
+# Create and install package config (optional)
+include(CMakePackageConfigHelpers)
+
+# Only create package config if template exists
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/${LIBNAME}Config.cmake.in")
+    configure_package_config_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/${LIBNAME}Config.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}Config.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${LIBNAME}
+        NO_SET_AND_CHECK_MACRO
+        NO_CHECK_REQUIRED_COMPONENTS_MACRO
+    )
+
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}ConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion
+    )
+
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}Config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}ConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${LIBNAME}
+    )
+
+    install(EXPORT ${LIBNAME}Targets
+        FILE ${LIBNAME}Targets.cmake
+        NAMESPACE ${LIBNAME}::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${LIBNAME}
+    )
+else()
+    # Create a simple package config file
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}ConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion
+    )
+
+    # Generate a basic config file
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}Config.cmake"
+"# ${LIBNAME} package config
+include(CMakeFindDependencyMacro)
+find_dependency(OpenSSL REQUIRED)
+
+include(\"\${CMAKE_CURRENT_LIST_DIR}/${LIBNAME}Targets.cmake\")
+")
+
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}Config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/${LIBNAME}ConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${LIBNAME}
+    )
+
+    install(EXPORT ${LIBNAME}Targets
+        FILE ${LIBNAME}Targets.cmake
+        NAMESPACE ${LIBNAME}::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${LIBNAME}
+    )
+endif()
+
+# Custom targets for compatibility with original Makefile
+
+# Strip target
+if(NOT WIN32 AND NOT CYGWIN)
+    add_custom_target(strip-binaries
+        COMMAND ${CMAKE_STRIP} $<TARGET_FILE:${LIBNAME}>
+        DEPENDS ${LIBNAME}
+        COMMENT "Stripping debug symbols from library"
+    )
+
+    add_custom_target(install-strip
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target strip-binaries
+        COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR}
+        COMMENT "Installing stripped binaries"
+    )
+endif()
+
+# Test target
+if(TEST_SOURCES)
+    enable_testing()
+
+    # Use Catch2's test discovery if available (Catch2 v3)
+    if(TARGET Catch2::Catch2WithMain)
+        include(Catch)
+        catch_discover_tests(${TESTNAME})
+    else()
+        add_test(NAME ${TESTNAME} COMMAND ${TESTNAME})
+    endif()
+
+    # Custom target to run tests (matching original Makefile behavior)
+    add_custom_target(test-run
+        COMMAND ${CMAKE_CURRENT_BINARY_DIR}/build/${TESTNAME}
+        DEPENDS ${TESTNAME}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Running tests with Catch2"
+    )
+
+    # Add convenience target that matches the test Makefile
+    add_custom_target(build-binary
+        DEPENDS ${TESTNAME}
+        COMMENT "Building test binary"
+    )
+endif()
+
+# Print configuration summary
+message(STATUS "Configuration Summary:")
+message(STATUS "  Platform: ${CMAKE_SYSTEM_NAME}")
+message(STATUS "  Version: ${PROJECT_VERSION}")
+message(STATUS "  Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "  Install prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "  OpenSSL found: ${OPENSSL_FOUND}")
+if(OPENSSL_FOUND)
+    message(STATUS "  OpenSSL version: ${OPENSSL_VERSION}")
+    message(STATUS "  OpenSSL include: ${OPENSSL_INCLUDE_DIR}")
+endif()
+message(STATUS "  Library sources: ${LIBRARY_SOURCES}")
+if(TEST_SOURCES)
+    message(STATUS "  Test sources found: YES")
+    message(STATUS "  Catch2 will be downloaded automatically")
+else()
+    message(STATUS "  Test sources found: NO")
+endif()
