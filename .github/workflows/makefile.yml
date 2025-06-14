@@ -37,6 +37,18 @@ jobs:
             cxx: g++
             cmake_args: ""
 
+          # macOS builds
+          - os: macos-13
+            compiler: clang
+            cc: clang
+            cxx: clang++
+            cmake_args: ""
+          - os: macos-14  # Apple Silicon
+            compiler: clang
+            cc: clang
+            cxx: clang++
+            cmake_args: ""
+
           # Windows builds
           - os: windows-2022
             compiler: msvc
