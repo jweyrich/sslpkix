@@ -148,7 +148,7 @@ public:
 	}
 	bool set_subject(CertificateName& subject) {
 		X509_set_subject_name(_handle, subject.handle());
-		_subject.set_handle(X509_get_subject_name(_handle));
+		_subject.wrap_external(X509_get_subject_name(_handle));
 		return true;
 	}
 	CertificateName& subject() {
@@ -156,7 +156,7 @@ public:
 	}
 	bool set_issuer(CertificateName& issuer) {
 		X509_set_issuer_name(_handle, issuer.handle());
-		_issuer.set_handle(X509_get_issuer_name(_handle));
+		_issuer.wrap_external(X509_get_issuer_name(_handle));
 		return true;
 	}
 	CertificateName& issuer() {
@@ -213,8 +213,8 @@ protected:
 			case 0xffffffffL: std::cerr << "The certificate serial is too large to fit in a long." << std::endl; break;
 		}
 		_pubkey.set_handle(X509_get_pubkey(_handle));
-		_subject.set_handle(X509_get_subject_name(_handle));
-		_issuer.set_handle(X509_get_issuer_name(_handle));
+		_subject.wrap_external(X509_get_subject_name(_handle));
+		_issuer.wrap_external(X509_get_issuer_name(_handle));
 	}
 protected:
 	handle_type *_handle;

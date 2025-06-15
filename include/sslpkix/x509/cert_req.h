@@ -96,7 +96,7 @@ public:
 	}
 	bool set_subject(CertificateName& subject) {
 		X509_REQ_set_subject_name(_handle, subject.handle());
-		_subject.set_handle(X509_REQ_get_subject_name(_handle));
+		_subject.wrap_external(X509_REQ_get_subject_name(_handle));
 		return true;
 	}
 	CertificateName& subject() {
@@ -139,7 +139,7 @@ protected:
 	void reload_data() {
 		_version = X509_REQ_get_version(_handle);
 		_pubkey.set_handle(X509_REQ_get_pubkey(_handle));
-		_subject.set_handle(X509_REQ_get_subject_name(_handle));
+		_subject.wrap_external(X509_REQ_get_subject_name(_handle));
 	}
 protected:
 	handle_type *_handle;
