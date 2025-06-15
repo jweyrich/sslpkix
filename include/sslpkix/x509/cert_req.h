@@ -143,7 +143,7 @@ public:
             return false;
         }
 
-        _pubkey.set_handle(key.handle());
+        _pubkey.set_external_handle(key.handle());
         return true;
     }
 
@@ -261,7 +261,7 @@ private:
         }
 
         _version = X509_REQ_get_version(_handle.get());
-        _pubkey.set_handle(X509_REQ_get_pubkey(_handle.get()));
+        _pubkey.set_external_handle(X509_REQ_get_pubkey(_handle.get()));
         _subject.wrap_external(X509_REQ_get_subject_name(_handle.get()));
     }
 

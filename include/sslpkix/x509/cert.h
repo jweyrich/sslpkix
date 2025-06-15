@@ -150,7 +150,7 @@ public:
             std::cerr << "Failed to set public key\n";
             return false;
         }
-        _pubkey.set_handle(key.handle());
+        _pubkey.set_external_handle(key.handle());
         return true;
     }
 
@@ -318,7 +318,7 @@ private:
             std::cerr << "Warning: Certificate serial number is too large to fit in a long\n";
         }
 
-        _pubkey.set_handle(X509_get_pubkey(_handle.get()));
+        _pubkey.set_external_handle(X509_get_pubkey(_handle.get()));
         _subject.wrap_external(X509_get_subject_name(_handle.get()));
         _issuer.wrap_external(X509_get_issuer_name(_handle.get()));
     }
