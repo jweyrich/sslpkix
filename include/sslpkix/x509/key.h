@@ -3,6 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <functional>
+#include <type_traits>
 #include <openssl/opensslv.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -36,7 +37,102 @@ namespace detail {
 #endif
         return std::shared_ptr<EVP_PKEY>(pkey, EVP_PKEY_Deleter{});
     }
-}
+
+    // Algorithm Type Detection
+    inline int get_algorithm_type(EVP_PKEY* pkey) {
+        if (!pkey) return 0;
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        return EVP_PKEY_type(pkey->type);
+#else
+        return EVP_PKEY_base_id(pkey);
+#endif
+    }
+
+    // Base template for cipher traits (specializations will be provided)
+    template<typename CipherType>
+    struct cipher_traits {
+        static_assert(std::is_same_v<CipherType, void>, "Cipher type not supported");
+    };
+
+    // SFINAE helper to check if a cipher type is supported
+    template<typename T, typename = void>
+    struct is_cipher_supported : std::false_type {};
+
+    template<typename T>
+    struct is_cipher_supported<T, std::void_t<decltype(cipher_traits<T>::evp_pkey_type)>>
+        : std::true_type {};
+
+    template<typename T>
+    constexpr bool is_cipher_supported_v = is_cipher_supported<T>::value;
+
+    // Template-based cipher operations
+    template<typename CipherType>
+    class CipherOperations {
+        static_assert(is_cipher_supported_v<CipherType>, "Cipher type not supported");
+
+    public:
+        static bool assign(EVP_PKEY* pkey, CipherType* key) {
+            if (!pkey || !key) return false;
+            int evp_pkey_type = cipher_traits<CipherType>::evp_pkey_type;
+            return cipher_traits<CipherType>::assign_func(pkey, evp_pkey_type, key) != 0;
+        }
+
+        static bool copy(EVP_PKEY* pkey, CipherType* key) {
+            if (!pkey || !key) return false;
+            return cipher_traits<CipherType>::copy_func(pkey, key) != 0;
+        }
+
+        static constexpr int evp_type() {
+            return cipher_traits<CipherType>::evp_pkey_type;
+        }
+    };
+
+    // RSA cipher traits specialization
+    #ifndef OPENSSL_NO_RSA
+    template<>
+    struct cipher_traits<RSA> {
+        static constexpr int evp_pkey_type = EVP_PKEY_RSA;
+        static constexpr auto assign_func = EVP_PKEY_assign;
+        static constexpr auto copy_func = EVP_PKEY_set1_RSA;
+        using native_type = RSA;
+    };
+    #endif
+
+    // DSA cipher traits specialization
+    #ifndef OPENSSL_NO_DSA
+    template<>
+    struct cipher_traits<DSA> {
+        static constexpr int evp_pkey_type = EVP_PKEY_DSA;
+        static constexpr auto assign_func = EVP_PKEY_assign;
+        static constexpr auto copy_func = EVP_PKEY_set1_DSA;
+        using native_type = DSA;
+    };
+    #endif
+
+    // DH cipher traits specialization
+    #ifndef OPENSSL_NO_DH
+    template<>
+    struct cipher_traits<DH> {
+        static constexpr int evp_pkey_type = EVP_PKEY_DH;
+        static constexpr auto assign_func = EVP_PKEY_assign;
+        static constexpr auto copy_func = EVP_PKEY_set1_DH;
+        using native_type = DH;
+    };
+    #endif
+
+    // EC cipher traits specialization
+    #ifndef OPENSSL_NO_EC
+    template<>
+    struct cipher_traits<EC_KEY> {
+        static constexpr int evp_pkey_type = EVP_PKEY_EC;
+        static constexpr auto assign_func = EVP_PKEY_assign;
+        static constexpr auto copy_func = EVP_PKEY_set1_EC_KEY;
+        using native_type = EC_KEY;
+    };
+    #endif
+
+} // namespace detail
 
 //
 // NOTE: With OpenSSL, the private key also contains the public key information
@@ -48,16 +144,16 @@ public:
     struct Cipher {
         enum class Type {
             #ifndef OPENSSL_NO_RSA
-            RSA = 1,
+            RSA = EVP_PKEY_RSA,
             #endif
             #ifndef OPENSSL_NO_DSA
-            DSA = 2,
+            DSA = EVP_PKEY_DSA,
             #endif
             #ifndef OPENSSL_NO_DH
-            DH = 3, // Diffie Hellman
+            DH = EVP_PKEY_DH,
             #endif
             #ifndef OPENSSL_NO_EC
-            EC = 4,
+            EC = EVP_PKEY_EC,
             #endif
             UNKNOWN = 0
         };
@@ -65,16 +161,13 @@ public:
 
 protected:
     std::shared_ptr<EVP_PKEY> _handle;
-    bool _is_external_handle = false;
 
 public:
     // Default constructor
     Key() = default;
 
     // Copy constructor
-    Key(const Key& other)
-        : _handle(other._handle)
-        , _is_external_handle(other._is_external_handle) {
+    Key(const Key& other) : _handle(other._handle) {
         if (!_handle && other._handle) {
             throw std::bad_alloc();
         }
@@ -87,7 +180,6 @@ public:
     Key& operator=(const Key& other) {
         if (this != &other) {
             _handle = other._handle;
-            _is_external_handle = other._is_external_handle;
         }
         return *this;
     }
@@ -117,84 +209,69 @@ public:
         }
 
         _handle = std::shared_ptr<EVP_PKEY>(new_key.release(), detail::EVP_PKEY_Deleter{});
-        _is_external_handle = false;
         return true;
     }
 
     // Get algorithm type
     Cipher::Type algorithm() const {
-        if (!_handle) return Cipher::Type::UNKNOWN;
+        int algorithm = detail::get_algorithm_type(_handle.get());
+        return static_cast<Cipher::Type>(algorithm);
+    }
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-        int algorithm = EVP_PKEY_type(_handle->type);
-#else
-        int algorithm = EVP_PKEY_base_id(_handle.get());
-#endif
+    // Template-based cipher operations
+    template<typename CipherType>
+    bool assign(CipherType* key) {
+        static_assert(detail::is_cipher_supported_v<CipherType>,
+                     "Cipher type not supported");
+        return detail::CipherOperations<CipherType>::assign(_handle.get(), key);
+    }
 
-        switch (algorithm) {
-            #ifndef OPENSSL_NO_RSA
-            case EVP_PKEY_RSA: return Cipher::Type::RSA;
-            #endif
-            #ifndef OPENSSL_NO_DSA
-            case EVP_PKEY_DSA: return Cipher::Type::DSA;
-            #endif
-            #ifndef OPENSSL_NO_DH
-            case EVP_PKEY_DH: return Cipher::Type::DH;
-            #endif
-            #ifndef OPENSSL_NO_EC
-            case EVP_PKEY_EC: return Cipher::Type::EC;
-            #endif
-            default: return Cipher::Type::UNKNOWN;
+    template<typename CipherType>
+    bool copy(CipherType* key) {
+        static_assert(detail::is_cipher_supported_v<CipherType>,
+                     "Cipher type not supported");
+        return detail::CipherOperations<CipherType>::copy(_handle.get(), key);
+    }
+
+    // Type-safe cipher checking
+    template<typename CipherType>
+    bool is_cipher_type() const {
+        static_assert(detail::is_cipher_supported_v<CipherType>,
+                     "Cipher type not supported");
+        return detail::get_algorithm_type(_handle.get()) ==
+               detail::cipher_traits<CipherType>::evp_pkey_type;
+    }
+
+    // Get cipher-specific handle with type safety
+    template<typename CipherType>
+    CipherType* get_cipher_handle() const {
+        static_assert(detail::is_cipher_supported_v<CipherType>,
+                     "Cipher type not supported");
+
+        if (!is_cipher_type<CipherType>()) {
+            return nullptr;
         }
-    }
 
-    #ifndef OPENSSL_NO_RSA
-    bool assign(RSA* key) {
-        if (!_handle || !key) return false;
-        return EVP_PKEY_assign_RSA(_handle.get(), key) != 0;
+        // Use appropriate EVP_PKEY_get* function based on cipher type
+        if constexpr (std::is_same_v<CipherType, RSA>) {
+            #ifndef OPENSSL_NO_RSA
+            return EVP_PKEY_get1_RSA(_handle.get());
+            #endif
+        } else if constexpr (std::is_same_v<CipherType, DSA>) {
+            #ifndef OPENSSL_NO_DSA
+            return EVP_PKEY_get1_DSA(_handle.get());
+            #endif
+        } else if constexpr (std::is_same_v<CipherType, DH>) {
+            #ifndef OPENSSL_NO_DH
+            return EVP_PKEY_get1_DH(_handle.get());
+            #endif
+        } else if constexpr (std::is_same_v<CipherType, EC_KEY>) {
+            #ifndef OPENSSL_NO_EC
+            return EVP_PKEY_get1_EC_KEY(_handle.get());
+            #endif
+        }
+        return nullptr;
     }
-
-    bool copy(RSA* key) {
-        if (!_handle || !key) return false;
-        return EVP_PKEY_set1_RSA(_handle.get(), key) != 0;
-    }
-    #endif
-
-    #ifndef OPENSSL_NO_DSA
-    bool assign(DSA* key) {
-        if (!_handle || !key) return false;
-        return EVP_PKEY_assign_DSA(_handle.get(), key) != 0;
-    }
-
-    bool copy(DSA* key) {
-        if (!_handle || !key) return false;
-        return EVP_PKEY_set1_DSA(_handle.get(), key) != 0;
-    }
-    #endif
-
-    #ifndef OPENSSL_NO_DH
-    bool assign(DH* key) {
-        if (!_handle || !key) return false;
-        return EVP_PKEY_assign_DH(_handle.get(), key) != 0;
-    }
-
-    bool copy(DH* key) {
-        if (!_handle || !key) return false;
-        return EVP_PKEY_set1_DH(_handle.get(), key) != 0;
-    }
-    #endif
-
-    #ifndef OPENSSL_NO_EC
-    bool assign(EC_KEY* key) {
-        if (!_handle || !key) return false;
-        return EVP_PKEY_assign_EC_KEY(_handle.get(), key) != 0;
-    }
-
-    bool copy(EC_KEY* key) {
-        if (!_handle || !key) return false;
-        return EVP_PKEY_set1_EC_KEY(_handle.get(), key) != 0;
-    }
-    #endif
 
     // Virtual methods for derived classes
     virtual bool load(IoSink& sink [[maybe_unused]], const char* password [[maybe_unused]]) {
@@ -223,10 +300,8 @@ protected:
     void set_external_handle(EVP_PKEY* handle) {
         if (handle) {
             _handle = detail::make_shared_evp_pkey(handle);
-            _is_external_handle = true;
         } else {
             _handle.reset();
-            _is_external_handle = false;
         }
     }
 
@@ -257,7 +332,6 @@ public:
         }
 
         _handle = std::shared_ptr<EVP_PKEY>(new_key.release(), detail::EVP_PKEY_Deleter{});
-        _is_external_handle = false;
         return true;
     }
 
@@ -273,6 +347,19 @@ public:
             std::cerr << "Failed to save private key: " << sink.source() << std::endl;
         }
         return ret != 0;
+    }
+
+    // Template-based factory methods
+    template<typename CipherType>
+    static std::unique_ptr<PrivateKey> create_from_cipher(CipherType* cipher_key) {
+        static_assert(detail::is_cipher_supported_v<CipherType>,
+                     "Cipher type not supported");
+
+        auto key = std::make_unique<PrivateKey>();
+        if (key->create() && key->assign(cipher_key)) {
+            return key;
+        }
+        return nullptr;
     }
 
     // Factory method to create a private key from file
@@ -310,6 +397,14 @@ namespace factory {
 
     inline std::unique_ptr<PrivateKey> make_private_key() {
         return std::make_unique<PrivateKey>();
+    }
+
+    // Template-based key creation
+    template<typename CipherType>
+    std::unique_ptr<Key> make_key_for_cipher() {
+        static_assert(detail::is_cipher_supported_v<CipherType>,
+                     "Cipher type not supported");
+        return make_key();
     }
 }
 
