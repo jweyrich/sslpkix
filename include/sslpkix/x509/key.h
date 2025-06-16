@@ -8,7 +8,6 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include "sslpkix/iosink.h"
-#include "sslpkix/common.h"
 
 namespace sslpkix {
 
