@@ -68,10 +68,6 @@ bool seed_prng(void) {
 	return true;
 }
 
-void print_errors(FILE *file) {
-	ERR_print_errors_fp(file);
-}
-
 bool add_custom_object(const char *oid, const char *sn, const char *ln, int *out_nid) {
 	if (out_nid == NULL)
 		return false;
