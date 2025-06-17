@@ -99,8 +99,13 @@ public:
         return static_cast<bool>(handle_);
     }
 
-    // Entry management
+    // Add an entry to the certificate name
     bool add_entry_by_nid(int nid, const std::string& value) {
+        if (value.empty()) {
+            std::cerr << "Failed to add entry (nid=" << nid << ", value=" << value << ") to certificate name. Reason: empty string is not allowed" << std::endl;
+            return false;
+        }
+
         const int result = X509_NAME_add_entry_by_NID(
             handle_.get(),
             nid,
@@ -109,9 +114,15 @@ public:
             -1, -1, 0
         );
 
+        if (result != 1) {
+            std::cerr << "Failed to add entry (nid=" << nid << ", value=" << value << ") to certificate name. Reason: " << get_error_string() << std::endl;
+            return false;
+        }
+
         return result == 1;
     }
 
+    // Add an entry to the certificate name
     bool add_entry_by_txt(const std::string& field, const std::string& value) {
         const int result = X509_NAME_add_entry_by_txt(
             handle_.get(),
@@ -133,11 +144,12 @@ public:
         return add_entry_by_txt(field, value);
     }
 
-    // Query methods
+    // Get the number of entries in the certificate name
     int entry_count() const noexcept {
         return handle_ ? X509_NAME_entry_count(handle_.get()) : 0;
     }
 
+    // Find an entry by NID
     int find_entry_by_nid(int nid, int start_pos = -1) const noexcept {
         return handle_ ? X509_NAME_get_index_by_NID(handle_.get(), nid, start_pos) : -1;
     }
@@ -147,6 +159,7 @@ public:
         return find_entry_by_nid(nid);
     }
 
+    // Get an entry by index
     X509_NAME_ENTRY* get_entry(int index) const noexcept {
         return handle_ ? X509_NAME_get_entry(handle_.get(), index) : nullptr;
     }
@@ -174,6 +187,7 @@ public:
     }
 
     // Get entry value into provided buffer
+    // If buffer is null, return the size of the entry value
     int get_entry_value(int nid, char* buffer, int buffer_size) const noexcept {
         return handle_ ? X509_NAME_get_text_by_NID(handle_.get(), nid, buffer, buffer_size) : -1;
     }
@@ -183,6 +197,7 @@ public:
         return get_entry_value(nid);
     }
 
+    // Get entry value into provided buffer
     int entry_value(int nid, char* buffer, int size) const noexcept {
         return get_entry_value(nid, buffer, size);
     }
@@ -204,6 +219,7 @@ public:
         return to_string();
     }
 
+    // Print the certificate name to a BIO
     bool print_to_bio(BIO* bio, int indent = 0) const noexcept {
         if (!handle_ || !bio) {
             return false;
