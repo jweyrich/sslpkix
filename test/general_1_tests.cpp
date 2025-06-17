@@ -1,11 +1,9 @@
+#include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include "sslpkix/sslpkix.h"
-
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/catch_session.hpp>
-
 
 static int prime_generation_callback(int p, int n, BN_GENCB *arg) {
 	(void)n;
@@ -267,25 +265,4 @@ TEST_CASE("CertificateName extension", "[certificate_name][extensions]")
 	sslpkix::CertificateName nameCopy2;
 	nameCopy2 = name;
 	REQUIRE(nameCopy2 == name);
-}
-
-int main(int argc, char *argv[])
-{
-	bool success = sslpkix::startup();
-	if (!success) {
-		std::cerr << "ERROR: Failed to initialize SSLPKIX." << std::endl;
-		exit(EXIT_FAILURE);
-	}
-
-	success = sslpkix::seed_prng();
-	if (!success) {
-		std::cerr << "ERROR: Failed to seed the PRNG." << std::endl;
-		exit(EXIT_FAILURE);
-	}
-
-	int result = Catch::Session().run(argc, argv);
-
-	sslpkix::shutdown();
-
-	return result;
 }
