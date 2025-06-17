@@ -255,6 +255,8 @@ public:
     }
 
     virtual bool load(IoSink& sink) {
+        if (!sink.is_open()) return false;
+
         auto* cert = PEM_read_bio_X509(sink.handle(), nullptr, nullptr, nullptr);
         if (!cert) {
             std::cerr << "Failed to load certificate: " << sink.source() << '\n';
@@ -267,7 +269,7 @@ public:
     }
 
     virtual bool save(const IoSink& sink) const {
-        if (!_handle) return false;
+        if (!_handle || !sink.is_open()) return false;
 
         if (!X509_print(sink.handle(), _handle.get()) ||
             !PEM_write_bio_X509(sink.handle(), _handle.get())) {

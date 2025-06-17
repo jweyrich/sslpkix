@@ -6,6 +6,7 @@
 #include <memory>
 #include <functional>
 #include <openssl/bio.h>
+
 namespace sslpkix {
 
 class IoSink {

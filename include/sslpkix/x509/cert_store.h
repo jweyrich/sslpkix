@@ -197,9 +197,8 @@ public:
 
         // Check the certificate
         ret = X509_verify_cert(pctx);
-
         if (ret < 0) {
-            std::cerr << "Error: " << X509_STORE_CTX_get_error(pctx) << '\n';
+            std::cerr << "Verify failed: " << X509_STORE_CTX_get_error(pctx) << '\n';
         }
 
         return ret == 1;
