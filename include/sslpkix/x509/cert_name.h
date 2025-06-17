@@ -5,8 +5,9 @@
 #include <memory>
 #include <stdexcept>
 #include <cassert>
-#include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #include <openssl/bio.h>
+#include "sslpkix/error.h"
 
 namespace sslpkix {
 

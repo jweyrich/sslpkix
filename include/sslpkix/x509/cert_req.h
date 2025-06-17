@@ -3,7 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <functional>
-#include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
