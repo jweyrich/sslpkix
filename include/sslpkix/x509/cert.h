@@ -229,6 +229,7 @@ public:
         if (!_handle) return false;
 
         if (X509_set_issuer_name(_handle.get(), issuer.handle()) == 0) {
+            std::cerr << "Failed to set issuer name" << std::endl;
             return false;
         }
         _issuer.wrap_external(X509_get_issuer_name(_handle.get()));

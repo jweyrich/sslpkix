@@ -77,7 +77,7 @@ bool add_custom_object(const char *oid, const char *sn, const char *ln, int *out
 		return false;
 	int nid = OBJ_create(oid, sn, ln);
 	if (nid == NID_undef) {
-		std::cerr << "Error creating object: " << oid << " " << sn << " " << ln << std::endl;
+		std::cerr << "Error creating object: " << oid << ", " << sn << ", " << ln << std::endl;
 		return false;
 	}
 	X509V3_EXT_add_alias(nid, NID_netscape_comment);
