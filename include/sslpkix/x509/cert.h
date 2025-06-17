@@ -27,8 +27,9 @@ public:
     using handle_ptr = std::unique_ptr<X509, Deleter>;
 
     enum class Version : int {
-        v2 = 2,
-        v3 = 3,
+        v1 = X509_VERSION_1,
+        v2 = X509_VERSION_2,
+        v3 = X509_VERSION_3,
         invalid = -1
     };
 
@@ -101,11 +102,13 @@ public:
     bool set_version(Version version) {
         if (!_handle) return false;
 
-        int ret = X509_set_version(_handle.get(), static_cast<long>(version));
+        long version_long = static_cast<long>(version);
+        int ret = X509_set_version(_handle.get(), version_long);
         if (ret == 0) {
-            std::cerr << "Failed to set version\n";
+            std::cerr << "Failed to set version to " << version_long << std::endl;
             return false;
         }
+
         _version = version;
         return true;
     }
