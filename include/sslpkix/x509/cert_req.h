@@ -25,18 +25,23 @@ public:
 
     using unique_ptr_type = std::unique_ptr<X509_REQ, Deleter>;
 
+    enum class Version : int {
+        v1 = X509_REQ_VERSION_1,
+        invalid = -1
+    };
+
 public:
     // Default constructor
     CertificateRequest()
         : _handle(nullptr, Deleter{})
-        , _version(0)
+        , _version(Version::invalid)
     {
     }
 
     // Copy constructor
     CertificateRequest(const CertificateRequest& other)
         : _handle(nullptr, Deleter{})
-        , _version(0)
+        , _version(Version::invalid)
     {
         if (other._handle) {
             auto* dup_handle = X509_REQ_dup(other._handle.get());
@@ -51,13 +56,10 @@ public:
     // Move constructor
     CertificateRequest(CertificateRequest&& other) noexcept
         : _handle(std::move(other._handle))
-        , _version(other._version)
-        , _serial(other._serial)
+        , _version(std::move(other._version))
         , _pubkey(std::move(other._pubkey))
         , _subject(std::move(other._subject))
     {
-        other._version = 0;
-        other._serial = 0;
     }
 
     // Copy assignment operator
@@ -73,13 +75,9 @@ public:
     CertificateRequest& operator=(CertificateRequest&& other) noexcept {
         if (this != &other) {
             _handle = std::move(other._handle);
-            _version = other._version;
-            _serial = other._serial;
+            _version = std::move(other._version);
             _pubkey = std::move(other._pubkey);
             _subject = std::move(other._subject);
-
-            other._version = 0;
-            other._serial = 0;
         }
         return *this;
     }
@@ -110,15 +108,15 @@ public:
         return true;
     }
 
-    // Set version
-    bool set_version(long version) {
+    bool set_version(Version version) {
         if (!_handle) {
             std::cerr << "Invalid certificate request handle" << std::endl;
             return false;
         }
 
-        if (X509_REQ_set_version(_handle.get(), version) == 0) {
-            std::cerr << "Failed to set version" << std::endl;
+        long version_long = static_cast<long>(version);
+        if (X509_REQ_set_version(_handle.get(), version_long) == 0) {
+            std::cerr << "Failed to set version to " << version_long << std::endl;
             return false;
         }
 
@@ -126,8 +124,7 @@ public:
         return true;
     }
 
-    // Get version
-    long version() const noexcept {
+    Version version() const noexcept {
         return _version;
     }
 
@@ -260,15 +257,14 @@ private:
             return;
         }
 
-        _version = X509_REQ_get_version(_handle.get());
+        _version = static_cast<Version>(X509_REQ_get_version(_handle.get()));
         _pubkey.set_external_handle(X509_REQ_get_pubkey(_handle.get()));
         _subject.wrap_external(X509_REQ_get_subject_name(_handle.get()));
     }
 
 private:
     unique_ptr_type _handle;
-    long _version{0};
-    long _serial{0};
+    Version _version{Version::invalid};
     Key _pubkey;
     CertificateName _subject;
 };
