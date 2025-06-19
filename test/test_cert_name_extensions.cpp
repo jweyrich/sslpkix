@@ -50,17 +50,16 @@ struct TestFixture {
 
 private:
 	void setup_name() {
-		REQUIRE(name.create());
-		REQUIRE(name.set_common_name("johndoe.example.com"));
-		REQUIRE(name.set_email("john.doe@example.com"));
-		REQUIRE(name.set_country("BR"));
-		REQUIRE(name.set_state("RS"));
-		REQUIRE(name.set_locality("Porto Alegre"));
-		REQUIRE(name.set_organization("John Doe's Company Pty."));
+		REQUIRE_NOTHROW(name.set_common_name("johndoe.example.com"));
+		REQUIRE_NOTHROW(name.set_email("john.doe@example.com"));
+		REQUIRE_NOTHROW(name.set_country("BR"));
+		REQUIRE_NOTHROW(name.set_state("RS"));
+		REQUIRE_NOTHROW(name.set_locality("Porto Alegre"));
+		REQUIRE_NOTHROW(name.set_organization("John Doe's Company Pty."));
 
 		// Add a custom extensions
-		REQUIRE(name.add_entry(SN_clientToken, value_clientToken));
-		REQUIRE(name.add_entry(SN_usersLimit, value_usersLimit));
+		REQUIRE_NOTHROW(name.add_entry(SN_clientToken, value_clientToken));
+		REQUIRE_NOTHROW(name.add_entry(SN_usersLimit, value_usersLimit));
 		REQUIRE(name.entry_value(nid_clientToken) == value_clientToken);
 		REQUIRE(name.entry_value(nid_usersLimit) == value_usersLimit);
 	}
@@ -69,10 +68,9 @@ private:
 TEST_CASE("CertificateName extension", "[certificate_name][extensions]")
 {
 	sslpkix::CertificateName name;
-	REQUIRE(name.create());
 
-	REQUIRE(name.add_entry(SN_clientToken, value_clientToken));
-	REQUIRE(name.add_entry(SN_usersLimit, value_usersLimit));
+	REQUIRE_NOTHROW(name.add_entry(SN_clientToken, value_clientToken));
+	REQUIRE_NOTHROW(name.add_entry(SN_usersLimit, value_usersLimit));
 
 	REQUIRE(name.entry_count() == 2);
 	REQUIRE(name.entry_value(nid_clientToken) == value_clientToken);
@@ -91,6 +89,6 @@ TEST_CASE("CertificateName extension", "[certificate_name][extensions]")
 
 	// Test assignment operator
 	sslpkix::CertificateName nameCopy2;
-	nameCopy2 = name;
+	REQUIRE_NOTHROW(nameCopy2 = name);
 	REQUIRE(nameCopy2 == name);
 }

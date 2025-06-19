@@ -34,7 +34,13 @@ private:
 
 public:
     // Constructors
-    CertificateName() = default;
+    CertificateName() {
+        auto* new_handle = X509_NAME_new();
+        if (!new_handle) {
+            throw std::runtime_error("Failed to create certificate name");
+        }
+        handle_.reset(new_handle);
+    }
 
     // Create from existing X509_NAME (takes ownership)
     explicit CertificateName(X509_NAME* handle) : handle_(handle, Deleter{true}) {
@@ -50,6 +56,13 @@ public:
             if (!handle_) {
                 throw std::runtime_error("Failed to duplicate X509_NAME");
             }
+        } else {
+            // If other is empty, create a new empty certificate name
+            auto* new_handle = X509_NAME_new();
+            if (!new_handle) {
+                throw std::runtime_error("Failed to create certificate name");
+            }
+            handle_.reset(new_handle);
         }
     }
 
@@ -65,7 +78,12 @@ public:
                     throw std::runtime_error("Failed to duplicate X509_NAME");
                 }
             } else {
-                reset();
+                // If other is empty, create a new empty certificate name
+                auto* new_handle = X509_NAME_new();
+                if (!new_handle) {
+                    throw std::runtime_error("Failed to create certificate name");
+                }
+                handle_.reset(new_handle);
             }
         }
         return *this;
@@ -73,17 +91,6 @@ public:
 
     // Move assignment
     CertificateName& operator=(CertificateName&&) noexcept = default;
-
-    bool create() {
-        auto* new_handle = X509_NAME_new();
-        if (!new_handle) {
-            std::cerr << "Failed to create certificate name" << std::endl;
-            return false;
-        }
-
-        handle_.reset(new_handle);
-        return true;
-    }
 
     // Legacy method name for compatibility
     const X509_NAME* handle() const noexcept {
@@ -100,10 +107,9 @@ public:
     }
 
     // Add an entry to the certificate name
-    bool add_entry_by_nid(int nid, const std::string& value) {
+    void add_entry_by_nid(int nid, const std::string& value) {
         if (value.empty()) {
-            std::cerr << "Failed to add entry (nid=" << nid << ", value=" << value << ") to certificate name. Reason: empty string is not allowed" << std::endl;
-            return false;
+            throw std::invalid_argument("Empty string is not allowed for certificate name entry (nid=" + std::to_string(nid) + ")");
         }
 
         const int result = X509_NAME_add_entry_by_NID(
@@ -115,11 +121,8 @@ public:
         );
 
         if (result != 1) {
-            std::cerr << "Failed to add entry (nid=" << nid << ", value=" << value << ") to certificate name. Reason: " << get_error_string() << std::endl;
-            return false;
+            throw std::runtime_error("Failed to add entry (nid=" + std::to_string(nid) + ", value=" + value + ") to certificate name. Reason: " + get_error_string());
         }
-
-        return result == 1;
     }
 
     // Add an entry to the certificate name
@@ -136,12 +139,12 @@ public:
     }
 
     // Legacy method names for compatibility
-    bool add_entry(int nid, const std::string& value) {
-        return add_entry_by_nid(nid, value);
+    void add_entry(int nid, const std::string& value) {
+        add_entry_by_nid(nid, value);
     }
 
-    bool add_entry(const std::string& field, const std::string& value) {
-        return add_entry_by_txt(field, value);
+    void add_entry(const std::string& field, const std::string& value) {
+        add_entry_by_txt(field, value);
     }
 
     // Get the number of entries in the certificate name
@@ -244,13 +247,13 @@ public:
     std::string email() const { return get_entry_value(NID_pkcs9_emailAddress); }
 
     // Common field setters
-    bool set_country(const std::string& value) { return add_entry_by_nid(NID_countryName, value); }
-    bool set_state(const std::string& value) { return add_entry_by_nid(NID_stateOrProvinceName, value); }
-    bool set_locality(const std::string& value) { return add_entry_by_nid(NID_localityName, value); }
-    bool set_organization(const std::string& value) { return add_entry_by_nid(NID_organizationName, value); }
-    bool set_organizational_unit(const std::string& value) { return add_entry_by_nid(NID_organizationalUnitName, value); }
-    bool set_common_name(const std::string& value) { return add_entry_by_nid(NID_commonName, value); }
-    bool set_email(const std::string& value) { return add_entry_by_nid(NID_pkcs9_emailAddress, value); }
+    void set_country(const std::string& value) { add_entry_by_nid(NID_countryName, value); }
+    void set_state(const std::string& value) { add_entry_by_nid(NID_stateOrProvinceName, value); }
+    void set_locality(const std::string& value) { add_entry_by_nid(NID_localityName, value); }
+    void set_organization(const std::string& value) { add_entry_by_nid(NID_organizationName, value); }
+    void set_organizational_unit(const std::string& value) { add_entry_by_nid(NID_organizationalUnitName, value); }
+    void set_common_name(const std::string& value) { add_entry_by_nid(NID_commonName, value); }
+    void set_email(const std::string& value) { add_entry_by_nid(NID_pkcs9_emailAddress, value); }
 
     // Comparison operators
     friend bool operator==(const CertificateName& lhs, const CertificateName& rhs) noexcept {

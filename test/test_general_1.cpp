@@ -37,23 +37,21 @@ struct TestFixture {
 
 private:
 	void setup_issuer() {
-		REQUIRE(issuer.create());
-		REQUIRE(issuer.set_common_name("janeroe.example.com"));
-		REQUIRE(issuer.set_email("jane.roe@example.com"));
-		REQUIRE(issuer.set_country("US"));
-		REQUIRE(issuer.set_state("CA"));
-		REQUIRE(issuer.set_locality("Palo Alto"));
-		REQUIRE(issuer.set_organization("Jane Roe's CA Pty."));
+		REQUIRE_NOTHROW(issuer.set_common_name("janeroe.example.com"));
+		REQUIRE_NOTHROW(issuer.set_email("jane.roe@example.com"));
+		REQUIRE_NOTHROW(issuer.set_country("US"));
+		REQUIRE_NOTHROW(issuer.set_state("CA"));
+		REQUIRE_NOTHROW(issuer.set_locality("Palo Alto"));
+		REQUIRE_NOTHROW(issuer.set_organization("Jane Roe's CA Pty."));
 	}
 
 	void setup_name() {
-		REQUIRE(name.create());
-		REQUIRE(name.set_common_name("johndoe.example.com"));
-		REQUIRE(name.set_email("john.doe@example.com"));
-		REQUIRE(name.set_country("BR"));
-		REQUIRE(name.set_state("RS"));
-		REQUIRE(name.set_locality("Porto Alegre"));
-		REQUIRE(name.set_organization("John Doe's Company Pty."));
+		REQUIRE_NOTHROW(name.set_common_name("johndoe.example.com"));
+		REQUIRE_NOTHROW(name.set_email("john.doe@example.com"));
+		REQUIRE_NOTHROW(name.set_country("BR"));
+		REQUIRE_NOTHROW(name.set_state("RS"));
+		REQUIRE_NOTHROW(name.set_locality("Porto Alegre"));
+		REQUIRE_NOTHROW(name.set_organization("John Doe's Company Pty."));
 	}
 
 	void setup_key() {
@@ -166,18 +164,23 @@ TEST_CASE_METHOD(TestFixture, "IoSink operators", "[iosink][operators]")
 TEST_CASE("CertificateName entries", "[certificate_name][entries]")
 {
 	sslpkix::CertificateName name;
-	REQUIRE(name.create());
-	REQUIRE(name.set_common_name("John Doe"));
+
+	REQUIRE_NOTHROW(name.set_common_name("John Doe"));
 	REQUIRE(name.common_name() == "John Doe");
-	REQUIRE(name.set_country("BR"));
+
+	REQUIRE_NOTHROW(name.set_country("BR"));
 	REQUIRE(name.country() == "BR");
-	REQUIRE(name.set_email("john.doe@example.com"));
+
+	REQUIRE_NOTHROW(name.set_email("john.doe@example.com"));
 	REQUIRE(name.email() == "john.doe@example.com");
-	REQUIRE(name.set_locality("Sao Paulo"));
+
+	REQUIRE_NOTHROW(name.set_locality("Sao Paulo"));
 	REQUIRE(name.locality() == "Sao Paulo");
-	REQUIRE(name.set_organization("Independent"));
+
+	REQUIRE_NOTHROW(name.set_organization("Independent"));
 	REQUIRE(name.organization() == "Independent");
-	REQUIRE(name.set_state("SP"));
+
+	REQUIRE_NOTHROW(name.set_state("SP"));
 	REQUIRE(name.state() == "SP");
 }
 

@@ -50,12 +50,11 @@ struct CertificateRequestTestFixture {
 
     void createTestCertificateName() {
         // Create a test subject name
-        REQUIRE(testSubject.create());
-        REQUIRE(testSubject.add_entry("C", "US"));
-        REQUIRE(testSubject.add_entry("ST", "California"));
-        REQUIRE(testSubject.add_entry("L", "San Francisco"));
-        REQUIRE(testSubject.add_entry("O", "Test Organization"));
-        REQUIRE(testSubject.add_entry("CN", "test.example.com"));
+        REQUIRE_NOTHROW(testSubject.add_entry("C", "US"));
+        REQUIRE_NOTHROW(testSubject.add_entry("ST", "California"));
+        REQUIRE_NOTHROW(testSubject.add_entry("L", "San Francisco"));
+        REQUIRE_NOTHROW(testSubject.add_entry("O", "Test Organization"));
+        REQUIRE_NOTHROW(testSubject.add_entry("CN", "test.example.com"));
     }
 
     // Test data members

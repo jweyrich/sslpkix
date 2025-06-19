@@ -16,22 +16,20 @@ struct CertificateNameTestFixture {
 	// Helper to create a populated certificate name
 	CertificateName createTestName() {
 		CertificateName name;
-		REQUIRE(name.create());
-		REQUIRE(name.set_common_name("Test User"));
-		REQUIRE(name.set_country("US"));
-		REQUIRE(name.set_state("California"));
-		REQUIRE(name.set_locality("San Francisco"));
-		REQUIRE(name.set_organization("Test Org"));
-		REQUIRE(name.set_organizational_unit("Test Unit"));
-		REQUIRE(name.set_email("test@example.com"));
+		REQUIRE_NOTHROW(name.set_common_name("Test User"));
+		REQUIRE_NOTHROW(name.set_country("US"));
+		REQUIRE_NOTHROW(name.set_state("California"));
+		REQUIRE_NOTHROW(name.set_locality("San Francisco"));
+		REQUIRE_NOTHROW(name.set_organization("Test Org"));
+		REQUIRE_NOTHROW(name.set_organizational_unit("Test Unit"));
+		REQUIRE_NOTHROW(name.set_email("test@example.com"));
 		return name;
 	}
 
 	// Helper to create a minimal certificate name
 	CertificateName createMinimalName() {
 		CertificateName name;
-		REQUIRE(name.create());
-		REQUIRE(name.set_common_name("Minimal User"));
+		REQUIRE_NOTHROW(name.set_common_name("Minimal User"));
 		return name;
 	}
 };
@@ -39,9 +37,9 @@ struct CertificateNameTestFixture {
 TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName default construction", "[CertificateName][constructor]") {
 	CertificateName name;
 
-	SECTION("Default constructed name is invalid") {
-		REQUIRE_FALSE(name);
-		REQUIRE(name.handle() == nullptr);
+	SECTION("Default constructed name is valid") {
+		REQUIRE(name);
+		REQUIRE(name.handle() != nullptr);
 		REQUIRE(name.entry_count() == 0);
 	}
 }
@@ -50,16 +48,9 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName creation and basic
 	CertificateName name;
 
 	SECTION("Create new certificate name") {
-		REQUIRE(name.create());
 		REQUIRE(name);
 		REQUIRE(name.handle() != nullptr);
 		REQUIRE(name.entry_count() == 0);
-	}
-
-	SECTION("Create fails gracefully on subsequent calls") {
-		REQUIRE(name.create());
-		REQUIRE(name.create()); // Should still work
-		REQUIRE(name);
 	}
 }
 
@@ -113,8 +104,8 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName copy operations", 
 		CertificateName empty;
 		CertificateName copy(empty);
 
-		REQUIRE_FALSE(copy);
-		REQUIRE(copy.handle() == nullptr);
+		REQUIRE(copy);
+		REQUIRE(copy.handle() != nullptr);
 	}
 }
 
@@ -148,11 +139,10 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName move operations", 
 
 TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName field operations", "[CertificateName][fields]") {
 	CertificateName name;
-	REQUIRE(name.create());
 
 	SECTION("Add entries by NID") {
-		REQUIRE(name.add_entry_by_nid(NID_commonName, "John Doe"));
-		REQUIRE(name.add_entry_by_nid(NID_countryName, "US"));
+		REQUIRE_NOTHROW(name.add_entry_by_nid(NID_commonName, "John Doe"));
+		REQUIRE_NOTHROW(name.add_entry_by_nid(NID_countryName, "US"));
 
 		REQUIRE(name.entry_count() == 2);
 		REQUIRE(name.get_entry_value(NID_commonName) == "John Doe");
@@ -160,8 +150,8 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName field operations",
 	}
 
 	SECTION("Add entries by text") {
-		REQUIRE(name.add_entry_by_txt("CN", "Jane Doe"));
-		REQUIRE(name.add_entry_by_txt("C", "CA"));
+		REQUIRE_NOTHROW(name.add_entry_by_txt("CN", "Jane Doe"));
+		REQUIRE_NOTHROW(name.add_entry_by_txt("C", "CA"));
 
 		REQUIRE(name.entry_count() == 2);
 		REQUIRE(name.get_entry_value(NID_commonName) == "Jane Doe");
@@ -169,8 +159,8 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName field operations",
 	}
 
 	SECTION("Legacy add_entry methods") {
-		REQUIRE(name.add_entry(NID_commonName, "Legacy User"));
-		REQUIRE(name.add_entry("C", "DE"));
+		REQUIRE_NOTHROW(name.add_entry(NID_commonName, "Legacy User"));
+		REQUIRE_NOTHROW(name.add_entry("C", "DE"));
 
 		REQUIRE(name.entry_count() == 2);
 		REQUIRE(name.entry_value(NID_commonName) == "Legacy User");
@@ -193,8 +183,6 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName field accessors", 
 
 	SECTION("Empty fields return empty strings") {
 		CertificateName empty_name;
-		REQUIRE(empty_name.create());
-
 		REQUIRE(empty_name.common_name().empty());
 		REQUIRE(empty_name.country().empty());
 		REQUIRE(empty_name.state().empty());
@@ -206,15 +194,13 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName field accessors", 
 
 	SECTION("Field setters") {
 		CertificateName name;
-		REQUIRE(name.create());
-
-		REQUIRE(name.set_common_name("New User"));
-		REQUIRE(name.set_country("GB"));
-		REQUIRE(name.set_state("England"));
-		REQUIRE(name.set_locality("London"));
-		REQUIRE(name.set_organization("New Org"));
-		REQUIRE(name.set_organizational_unit("New Unit"));
-		REQUIRE(name.set_email("new@example.com"));
+		REQUIRE_NOTHROW(name.set_common_name("New User"));
+		REQUIRE_NOTHROW(name.set_country("GB"));
+		REQUIRE_NOTHROW(name.set_state("England"));
+		REQUIRE_NOTHROW(name.set_locality("London"));
+		REQUIRE_NOTHROW(name.set_organization("New Org"));
+		REQUIRE_NOTHROW(name.set_organizational_unit("New Unit"));
+		REQUIRE_NOTHROW(name.set_email("new@example.com"));
 
 		REQUIRE(name.common_name() == "New User");
 		REQUIRE(name.country() == "GB");
@@ -346,17 +332,17 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName comparison operato
 		REQUIRE_FALSE(both_are_less);
 	}
 
-	SECTION("Null name comparisons") {
-		CertificateName null1, null2;
+	SECTION("Empty name comparisons") {
+		CertificateName empty1, empty2;
 
-		REQUIRE(null1 == null2);
-		REQUIRE_FALSE(null1 != null2);
-		REQUIRE_FALSE(null1 < null2);
+		REQUIRE(empty1 == empty2);
+		REQUIRE_FALSE(empty1 != empty2);
+		REQUIRE_FALSE(empty1 < empty2);
 
-		REQUIRE_FALSE(null1 == name1);
-		REQUIRE(null1 != name1);
-		REQUIRE(null1 < name1);
-		REQUIRE_FALSE(name1 < null1);
+		REQUIRE_FALSE(empty1 == name1);
+		REQUIRE(empty1 != name1);
+		REQUIRE(empty1 < name1);
+		REQUIRE_FALSE(name1 < empty1);
 	}
 }
 
@@ -385,11 +371,11 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName hash functionality
 		REQUIRE(hash1 == hash2);
 	}
 
-	SECTION("Hash of null name") {
+	SECTION("Hash of empty name") {
 		CertificateNameHash hasher;
-		CertificateName null_name;
+		CertificateName empty_name;
 
-		REQUIRE(hasher(null_name) == 0);
+		REQUIRE(hasher(empty_name) != 0);
 	}
 
 	SECTION("Use in unordered containers") {
@@ -412,16 +398,16 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName hash functionality
 }
 
 TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName error handling", "[CertificateName][errors]") {
-	SECTION("Operations on null name") {
-		CertificateName null_name;
+	SECTION("Operations on empty name") {
+		CertificateName empty_name;
 
-		REQUIRE(null_name.entry_count() == 0);
-		REQUIRE(null_name.find_entry_by_nid(NID_commonName) == -1);
-		REQUIRE(null_name.get_entry(0) == nullptr);
-		REQUIRE(null_name.get_entry_value(NID_commonName).empty());
-		REQUIRE(null_name.get_entry_value(NID_commonName, nullptr, 0) == -1);
-		REQUIRE(null_name.to_string().empty());
-		REQUIRE_FALSE(null_name.print_to_bio(BIO_new(BIO_s_mem())));
+		REQUIRE(empty_name.entry_count() == 0);
+		REQUIRE(empty_name.find_entry_by_nid(NID_commonName) == -1);
+		REQUIRE(empty_name.get_entry(0) == nullptr);
+		REQUIRE(empty_name.get_entry_value(NID_commonName).empty());
+		REQUIRE(empty_name.get_entry_value(NID_commonName, nullptr, 0) == -1);
+		REQUIRE(empty_name.to_string().empty());
+		REQUIRE(empty_name.print_to_bio(BIO_new(BIO_s_mem())));
 	}
 
 	SECTION("Invalid entry operations") {
@@ -451,30 +437,27 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName error handling", "
 TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName edge cases", "[CertificateName][edge]") {
 	SECTION("Empty string values") {
 		CertificateName name;
-		REQUIRE(name.create());
 
-		REQUIRE_FALSE(name.set_common_name(""));
+		REQUIRE_THROWS_AS(name.set_common_name(""), std::invalid_argument);
 		REQUIRE(name.common_name().empty());
 		REQUIRE(name.entry_count() == 0);
 	}
 
 	SECTION("Unicode/special characters") {
 		CertificateName name;
-		REQUIRE(name.create());
 
 		// Test with some special characters (results may vary based on OpenSSL config)
 		std::string special_name = "Test-User_123";
-		REQUIRE(name.set_common_name(special_name));
+		REQUIRE_NOTHROW(name.set_common_name(special_name));
 		REQUIRE(name.common_name() == special_name);
 	}
 
 	SECTION("Multiple entries with same NID") {
 		CertificateName name;
-		REQUIRE(name.create());
 
 		// Some fields can have multiple entries
-		REQUIRE(name.add_entry_by_nid(NID_organizationalUnitName, "Unit1"));
-		REQUIRE(name.add_entry_by_nid(NID_organizationalUnitName, "Unit2"));
+		REQUIRE_NOTHROW(name.add_entry_by_nid(NID_organizationalUnitName, "Unit1"));
+		REQUIRE_NOTHROW(name.add_entry_by_nid(NID_organizationalUnitName, "Unit2"));
 
 		REQUIRE(name.entry_count() == 2);
 
@@ -489,10 +472,9 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName edge cases", "[Cer
 
 	SECTION("Very long field values") {
 		CertificateName name;
-		REQUIRE(name.create());
 
 		std::string long_value(500, 'A'); // 500 character string
-		REQUIRE_FALSE(name.set_common_name(long_value));
+		REQUIRE_THROWS_AS(name.set_common_name(long_value), std::runtime_error);
 		REQUIRE_FALSE(name.common_name() == long_value);
 	}
 }
