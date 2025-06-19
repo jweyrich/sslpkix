@@ -87,20 +87,19 @@ private:
 	}
 
 	void setup_certificate() {
-		REQUIRE(cert.create());
-		REQUIRE(cert.set_version(sslpkix::Certificate::Version::v3));
-		REQUIRE(cert.set_pubkey(key));
-		REQUIRE(cert.set_serial(31337L)); // Hardcoded serial - Never do this in production!
-		REQUIRE(cert.set_issuer(issuer));
-		REQUIRE(cert.set_subject(name));
-		REQUIRE(cert.set_valid_since(0));
-		REQUIRE(cert.set_valid_until(5)); // Valid for 5 days from now
-		REQUIRE(cert.sign(key));
+		REQUIRE_NOTHROW(cert.set_version(sslpkix::Certificate::Version::v3));
+		REQUIRE_NOTHROW(cert.set_pubkey(key));
+		REQUIRE_NOTHROW(cert.set_serial(31337L)); // Hardcoded serial - Never do this in production!
+		REQUIRE_NOTHROW(cert.set_issuer(issuer));
+		REQUIRE_NOTHROW(cert.set_subject(name));
+		REQUIRE_NOTHROW(cert.set_valid_since(0));
+		REQUIRE_NOTHROW(cert.set_valid_until(5)); // Valid for 5 days from now
+		REQUIRE_NOTHROW(cert.sign(key));
 
 		// Save certificate data to memory
 		sslpkix::MemorySink cert_sink;
 		REQUIRE(cert_sink.open_rw());
-		REQUIRE(cert.save(cert_sink));
+		REQUIRE_NOTHROW(cert.save(cert_sink));
 		cert_data = cert_sink.read_all();
 	}
 };
