@@ -113,12 +113,11 @@ public:
         if (ret == 0) {
             throw std::runtime_error("Failed to set certificate version to " + std::to_string(version_long));
         }
-
-        _version = version;
     }
 
     Version version() const noexcept {
-        return _version;
+        auto version = X509_get_version(_handle.get());
+        return static_cast<Version>(version);
     }
 
     void set_serial(long serial) {
@@ -131,11 +130,18 @@ public:
         if (result == 0) {
             throw std::runtime_error("Failed to set certificate serial number");
         }
-        _serial = serial;
     }
 
-    long serial() const noexcept {
-        return _serial;
+    long serial() const {
+        ASN1_INTEGER* serial_number = X509_get_serialNumber(_handle.get());
+        auto serial = ASN1_INTEGER_get(serial_number);
+
+        // Handle potential overflow warning
+        if (serial == 0xffffffffL) {
+            throw std::overflow_error("Certificate serial number is too large to fit in a long");
+        }
+        return serial;
+
     }
 
     void set_valid_since(int days) {
@@ -334,8 +340,6 @@ public:
     friend void swap(Certificate& a, Certificate& b) noexcept {
         using std::swap;
         swap(a._handle, b._handle);
-        swap(a._version, b._version);
-        swap(a._serial, b._serial);
         swap(a._pubkey, b._pubkey);
         swap(a._subject, b._subject);
         swap(a._issuer, b._issuer);
@@ -344,29 +348,17 @@ public:
 private:
     void reload_data() {
         if (!_handle) {
-            _version = Version::invalid;
-            _serial = 0;
             return;
         }
 
         auto cert = _handle.get();
-        _version = static_cast<Version>(X509_get_version(cert));
-        _serial = ASN1_INTEGER_get(X509_get_serialNumber(cert));
-
-        // Handle potential overflow warning
-        if (_serial == 0xffffffffL) {
-            throw std::overflow_error("Certificate serial number is too large to fit in a long");
-        }
-
         _pubkey.set_external_handle(X509_get_pubkey(cert));
         _subject.wrap_external(X509_get_subject_name(cert));
         _issuer.wrap_external(X509_get_issuer_name(cert));
     }
 
 private:
-    handle_ptr _handle;
-    Version _version{Version::invalid};
-    long _serial{0};
+    handle_ptr _handle{nullptr};
     Key _pubkey;
     CertificateName _subject;
     CertificateName _issuer;
