@@ -217,6 +217,11 @@ public:
         return static_cast<Cipher::Type>(algorithm);
     }
 
+    // Get bit length
+    int bit_length() const {
+        return EVP_PKEY_bits(_handle.get());
+    }
+
     // Template-based cipher operations
     template<typename CipherType>
     bool assign(CipherType* key) {
@@ -294,7 +299,6 @@ public:
         return !(lhs == rhs);
     }
 
-protected:
     // Set external handle (for cases where we don't own the EVP_PKEY)
     void set_external_handle(EVP_PKEY* handle) {
         if (handle) {
@@ -304,6 +308,7 @@ protected:
         }
     }
 
+protected:
     // Get shared handle for friends
     std::shared_ptr<EVP_PKEY> get_shared_handle() const {
         return _handle;
