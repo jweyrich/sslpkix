@@ -99,7 +99,7 @@ public:
     bool create() {
         auto* new_handle = X509_REQ_new();
         if (!new_handle) {
-            std::cerr << "Failed to create certificate request" << std::endl;
+            std::cerr << "Failed to create certificate request. Reason: " << get_error_string() << std::endl;
             return false;
         }
 
@@ -109,14 +109,13 @@ public:
     }
 
     bool set_version(Version version) {
-        if (!_handle) {
-            std::cerr << "Invalid certificate request handle" << std::endl;
+        if (check_missing_handle(__func__)) {
             return false;
         }
 
         long version_long = static_cast<long>(version);
         if (X509_REQ_set_version(_handle.get(), version_long) == 0) {
-            std::cerr << "Failed to set version to " << version_long << std::endl;
+            std::cerr << "Failed to set version to " << version_long << ". Reason: " << get_error_string() << std::endl;
             return false;
         }
 
@@ -130,13 +129,12 @@ public:
 
     // Set public key
     bool set_pubkey(Key& key) {
-        if (!_handle) {
-            std::cerr << "Invalid certificate request handle" << std::endl;
+        if (check_missing_handle(__func__)) {
             return false;
         }
 
         if (X509_REQ_set_pubkey(_handle.get(), key.handle()) == 0) {
-            std::cerr << "Failed to set public key" << std::endl;
+            std::cerr << "Failed to set public key. Reason: " << get_error_string() << std::endl;
             return false;
         }
 
@@ -161,7 +159,7 @@ public:
         }
 
         if (!X509_REQ_sign(_handle.get(), key.handle(), Digest::handle(digest))) {
-            std::cerr << "Failed to sign certificate request" << std::endl;
+            std::cerr << "Failed to sign certificate request. Reason: " << get_error_string() << std::endl;
             return false;
         }
 
@@ -170,8 +168,7 @@ public:
 
     // Add extensions
     bool add_extensions(STACK_OF(X509_EXTENSION)* exts) {
-        if (!_handle) {
-            std::cerr << "Invalid certificate request handle" << std::endl;
+        if (check_missing_handle(__func__)) {
             return false;
         }
 
@@ -180,13 +177,12 @@ public:
 
     // Set subject
     bool set_subject(CertificateName& subject) {
-        if (!_handle) {
-            std::cerr << "Invalid certificate request handle" << std::endl;
+        if (check_missing_handle(__func__)) {
             return false;
         }
 
         if (X509_REQ_set_subject_name(_handle.get(), subject.handle()) == 0) {
-            std::cerr << "Failed to set subject name" << std::endl;
+            std::cerr << "Failed to set subject name. Reason: " << get_error_string() << std::endl;
             return false;
         }
 
@@ -205,7 +201,7 @@ public:
 
     // Verify signature
     bool verify_signature(Key& key) const {
-        if (!_handle) {
+        if (check_missing_handle(__func__)) {
             return false;
         }
 
@@ -214,7 +210,7 @@ public:
 
     // Check private key
     bool check_private_key(PrivateKey& key) const {
-        if (!_handle) {
+        if (check_missing_handle(__func__)) {
             return false;
         }
 
@@ -225,7 +221,7 @@ public:
     virtual bool load(IoSink& sink) {
         auto* new_handle = PEM_read_bio_X509_REQ(sink.handle(), nullptr, nullptr, nullptr);
         if (!new_handle) {
-            std::cerr << "Failed to load certificate request: " << sink.source() << std::endl;
+            std::cerr << "Failed to load certificate request: " << sink.source() << ". Reason: " << get_error_string() << std::endl;
             return false;
         }
 
@@ -236,14 +232,13 @@ public:
 
     // Save to IoSink
     virtual bool save(IoSink& sink) const {
-        if (!_handle) {
-            std::cerr << "Invalid certificate request handle" << std::endl;
+        if (check_missing_handle(__func__)) {
             return false;
         }
 
         if (!X509_REQ_print(sink.handle(), _handle.get()) ||
             !PEM_write_bio_X509_REQ(sink.handle(), _handle.get())) {
-            std::cerr << "Failed to save certificate request: " << sink.source() << std::endl;
+            std::cerr << "Failed to save certificate request: " << sink.source() << ". Reason: " << get_error_string() << std::endl;
             return false;
         }
 
@@ -254,12 +249,24 @@ private:
     // Reload internal data from handle
     void reload_data() {
         if (!_handle) {
+            _version = Version::invalid;
+            _pubkey.set_external_handle(nullptr);
+            _subject.wrap_external(nullptr);
             return;
         }
 
-        _version = static_cast<Version>(X509_REQ_get_version(_handle.get()));
-        _pubkey.set_external_handle(X509_REQ_get_pubkey(_handle.get()));
-        _subject.wrap_external(X509_REQ_get_subject_name(_handle.get()));
+        auto req = _handle.get();
+        _version = static_cast<Version>(X509_REQ_get_version(req));
+        _pubkey.set_external_handle(X509_REQ_get_pubkey(req));
+        _subject.wrap_external(X509_REQ_get_subject_name(req));
+    }
+
+    bool check_missing_handle(const std::string& callerName) const {
+        if (!_handle) {
+            std::cerr << "Invalid certificate request handle in " << callerName << std::endl;
+            return true;
+        }
+        return false;
     }
 
 private:
