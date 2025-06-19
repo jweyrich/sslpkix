@@ -248,8 +248,8 @@ if(TEST_SOURCES)
     # Test compile options - compiler-specific
     target_compile_options(${TESTNAME} PRIVATE ${COMMON_COMPILE_OPTIONS})
 
-    # Add -rdynamic only for GCC/Clang on Unix-like systems
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND NOT WIN32)
+    # Add -rdynamic only for GCC/Clang on Unix-like systems (excluding macOS)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND UNIX AND NOT APPLE AND NOT WIN32)
         target_compile_options(${TESTNAME} PRIVATE -rdynamic)
         target_link_libraries(${TESTNAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
