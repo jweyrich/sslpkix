@@ -44,9 +44,26 @@ public:
         , _version(Version::invalid)
     {
         if (other._handle) {
-            auto* dup_handle = X509_REQ_dup(other._handle.get());
+            auto other_handle = other._handle.get();
+
+            EVP_PKEY *test_pkey = X509_REQ_get_pubkey(other_handle);
+            if (!test_pkey) {
+                throw std::runtime_error("X509_REQ_get_pubkey failed");
+            }
+
+            // IMPORTANT: This is a workaround to avoid a bug in OpenSSL.
+            // X509_REQ_dup is not working as expected in OpenSSL 3.5.0 8 Apr 2025
+            // auto* dup_handle = X509_REQ_dup(other_handle);
+            X509_REQ *dup_handle = nullptr;
+            {
+                unsigned char *buf = nullptr;
+                int len = i2d_X509_REQ(other_handle, &buf);
+                const unsigned char *p = buf;
+                dup_handle = d2i_X509_REQ(nullptr, &p, len);
+                OPENSSL_free(buf);
+            }
             if (!dup_handle) {
-                throw std::bad_alloc();
+                throw std::runtime_error("Failed to duplicate certificate request");
             }
             _handle.reset(dup_handle);
             reload_data();
@@ -258,8 +275,19 @@ private:
 
         auto req = _handle.get();
         _version = static_cast<Version>(X509_REQ_get_version(req));
-        _pubkey.set_external_handle(X509_REQ_get_pubkey(req));
-        _subject.wrap_external(X509_REQ_get_subject_name(req));
+
+        auto pkey = X509_REQ_get_pubkey(req);
+        if (pkey) {
+            // Only set public key if we can get it
+            _pubkey.set_external_handle(pkey);
+            EVP_PKEY_free(pkey);
+        }
+
+        auto subject = X509_REQ_get_subject_name(req);
+        if (subject) {
+            // Only set subject if we can get it
+            _subject.wrap_external(subject);
+        }
     }
 
     bool check_missing_handle(const std::string& callerName) const {
