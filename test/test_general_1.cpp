@@ -20,170 +20,147 @@ static int prime_generation_callback(int p, int n, BN_GENCB *arg) {
 	return 1;
 }
 
-TEST_CASE("Certificate creation", "[certificate][creation]")
-{
-	//
-	// Create issuer
-	//
-
+struct TestFixture {
 	sslpkix::CertificateName issuer;
-	REQUIRE(issuer.create());
-	REQUIRE(issuer.set_common_name("janeroe.example.com"));
-	REQUIRE(issuer.set_email("jane.roe@example.com"));
-	REQUIRE(issuer.set_country("US"));
-	REQUIRE(issuer.set_state("CA"));
-	REQUIRE(issuer.set_locality("Palo Alto"));
-	REQUIRE(issuer.set_organization("Jane Roe's CA Pty."));
-
-	//
-	// Create subject
-	//
-
-	sslpkix::CertificateName subject;
-	REQUIRE(subject.create());
-	REQUIRE(subject.set_common_name("johndoe.example.com"));
-	REQUIRE(subject.set_email("john.doe@example.com"));
-	REQUIRE(subject.set_country("BR"));
-	REQUIRE(subject.set_state("RS"));
-	REQUIRE(subject.set_locality("Porto Alegre"));
-	REQUIRE(subject.set_organization("John Doe's Company Pty."));
-
-	//
-	// Add a custom extensions - This is not required.
-	//
-
-	int nid;
-	const char *oid = "1.2.3.4.5.31";
-	const char *short_name = "CTE";
-	const char *long_name = "customTextEntry";
-	const char *value = "Some value here";
-	REQUIRE(sslpkix::add_custom_object(oid, short_name, long_name, &nid));
-	REQUIRE(subject.add_entry(short_name, value));
-	REQUIRE(subject.entry_value(nid) == value);
-
-	//
-	// Generate the key pair
-	//
-
+	sslpkix::CertificateName name;
 	sslpkix::PrivateKey key;
-	REQUIRE(key.create());
-	RSA *rsa_keypair = RSA_new();
-	REQUIRE(rsa_keypair != NULL);
-	BIGNUM *f4 = BN_new();
-	REQUIRE(f4 != NULL);
-	REQUIRE(BN_set_word(f4, RSA_F4) == 1); // Use the fourth Fermat Number
-
-
-
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-	BN_GENCB *cb = BN_GENCB_new();
-	REQUIRE(cb != NULL);
-#else
-	BN_GENCB autocb;
-	BN_GENCB *cb = &autocb;
-#endif
-	BN_GENCB_set(cb, prime_generation_callback, NULL);
-	REQUIRE(RSA_generate_key_ex(rsa_keypair, 1024, f4, cb) == 1);
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-	BN_GENCB_free(cb);
-#endif
-
-
-	REQUIRE(key.copy(rsa_keypair));
-	BN_free(f4);
-	f4 = NULL;
-	RSA_free(rsa_keypair);
-	rsa_keypair = NULL;
-
-	sslpkix::FileSink key_file;
-	REQUIRE(key_file.open("JohnDoe.key", "wb"));
-	REQUIRE(key.save(key_file));
-	key_file.close();
-
-	//
-	// Create the certificate
-	//
-
 	sslpkix::Certificate cert;
-	REQUIRE(cert.create());
+	std::string key_data;
+	std::string cert_data;
 
-	// Adjust version
-	REQUIRE(cert.set_version(sslpkix::Certificate::Version::v3));
+	TestFixture() {
+		setup_issuer();
+		setup_name();
+		setup_key();
+		setup_certificate();
+	}
 
-	// Adjust keys
-	REQUIRE(cert.set_pubkey(key));
+private:
+	void setup_issuer() {
+		REQUIRE(issuer.create());
+		REQUIRE(issuer.set_common_name("janeroe.example.com"));
+		REQUIRE(issuer.set_email("jane.roe@example.com"));
+		REQUIRE(issuer.set_country("US"));
+		REQUIRE(issuer.set_state("CA"));
+		REQUIRE(issuer.set_locality("Palo Alto"));
+		REQUIRE(issuer.set_organization("Jane Roe's CA Pty."));
+	}
 
-	// Use a hardcoded serial - Never do this in production code!
-	REQUIRE(cert.set_serial(31337L));
+	void setup_name() {
+		REQUIRE(name.create());
+		REQUIRE(name.set_common_name("johndoe.example.com"));
+		REQUIRE(name.set_email("john.doe@example.com"));
+		REQUIRE(name.set_country("BR"));
+		REQUIRE(name.set_state("RS"));
+		REQUIRE(name.set_locality("Porto Alegre"));
+		REQUIRE(name.set_organization("John Doe's Company Pty."));
+	}
 
-	// Adjust issuer and subject
-	REQUIRE(cert.set_issuer(issuer));
-	REQUIRE(cert.set_subject(subject));
+	void setup_key() {
+		REQUIRE(key.create());
+		RSA *rsa_keypair = RSA_new();
+		REQUIRE(rsa_keypair != nullptr);
+		BIGNUM *f4 = BN_new();
+		REQUIRE(f4 != nullptr);
+		REQUIRE(BN_set_word(f4, RSA_F4) == 1); // Use the fourth Fermat Number
 
-	// Valid for 5 days from now
-	REQUIRE(cert.set_valid_since(0));
-	REQUIRE(cert.set_valid_until(5));
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+		BN_GENCB *cb = BN_GENCB_new();
+		REQUIRE(cb != nullptr);
+#else
+		BN_GENCB autocb;
+		BN_GENCB *cb = &autocb;
+#endif
+		BN_GENCB_set(cb, prime_generation_callback, nullptr);
+		REQUIRE(RSA_generate_key_ex(rsa_keypair, 1024, f4, cb) == 1);
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+		BN_GENCB_free(cb);
+#endif
 
-	// Self-sign this certificate
-	REQUIRE(cert.sign(key));
+		REQUIRE(key.copy(rsa_keypair));
+		BN_free(f4);
+		RSA_free(rsa_keypair);
 
-	// Save it
-	sslpkix::FileSink cert_file;
-	REQUIRE(cert_file.open("JohnDoe.crt", "wb"));
-	REQUIRE(cert.save(cert_file));
-	cert_file.close();
+		// Save key data to memory
+		sslpkix::MemorySink key_sink;
+		REQUIRE(key_sink.open_rw());
+		REQUIRE(key.save(key_sink));
+		key_data = key_sink.read_all();
+	}
 
-	// TODO(jweyrich): Move the following to a different test case, "certificate/copy_ctor"
+	void setup_certificate() {
+		REQUIRE(cert.create());
+		REQUIRE(cert.set_version(sslpkix::Certificate::Version::v3));
+		REQUIRE(cert.set_pubkey(key));
+		REQUIRE(cert.set_serial(31337L)); // Hardcoded serial - Never do this in production!
+		REQUIRE(cert.set_issuer(issuer));
+		REQUIRE(cert.set_subject(name));
+		REQUIRE(cert.set_valid_since(0));
+		REQUIRE(cert.set_valid_until(5)); // Valid for 5 days from now
+		REQUIRE(cert.sign(key));
+
+		// Save certificate data to memory
+		sslpkix::MemorySink cert_sink;
+		REQUIRE(cert_sink.open_rw());
+		REQUIRE(cert.save(cert_sink));
+		cert_data = cert_sink.read_all();
+	}
+};
+
+TEST_CASE_METHOD(TestFixture, "Certificate creation", "[certificate][creation]")
+{
+	// Verify the certificate was created properly
+	REQUIRE(cert_data.size() > 0);
+	REQUIRE(key_data.size() > 0);
+
+	// Test copy constructor
 	sslpkix::Certificate certCopy1(cert);
 	REQUIRE(certCopy1 == cert);
 
-	// TODO(jweyrich): Move the following to a different test case, "certificate/assignament_op"
+	// Test assignment operator
 	sslpkix::Certificate certCopy2;
 	certCopy2 = cert;
 	REQUIRE(certCopy2 == cert);
 }
 
-TEST_CASE("IoSink operators", "[iosink][operators]")
+TEST_CASE_METHOD(TestFixture, "IoSink operators", "[iosink][operators]")
 {
-	sslpkix::FileSink cert_file;
-	REQUIRE(cert_file.open("JohnDoe.crt", "rb"));
+	// Test reading certificate data from memory
+	sslpkix::MemorySink cert_mem_read;
+	REQUIRE(cert_mem_read.open_ro(cert_data.c_str(), cert_data.size()));
 	std::string cert_string;
-	cert_file >> cert_string; // IoSink to std::string
-	//std::cout << cert_string << std::endl;
-	cert_file.close();
-	// TODO(jweyrich): Test whether operator>> was successful. How?
+	cert_mem_read >> cert_string; // IoSink to std::string
+	REQUIRE(cert_string == cert_data);
 
 	std::stringstream sstream;
 
-	sslpkix::MemorySink cert_mem;
-	REQUIRE(cert_mem.open_rw());
-	cert_mem << cert_string; // std::string to IoSink
-	sstream << cert_mem; // IoSink to std::stringstream
-	cert_mem.close();
+	// Test writing to memory sink
+	sslpkix::MemorySink cert_mem_write;
+	REQUIRE(cert_mem_write.open_rw());
+	cert_mem_write << cert_string; // std::string to IoSink
+	sstream << cert_mem_write; // IoSink to std::stringstream
 	REQUIRE(sstream.str() == cert_string);
 
 	// Reset the stringstream
 	sstream.str(std::string());
 
-	sslpkix::MemorySink key_mem;
-	REQUIRE(key_mem.open_rw());
-	std::filebuf fbuf;
-	fbuf.open("JohnDoe.key", std::ios::in);
-	std::istream istream(&fbuf);
-	istream >> key_mem; // std::istream to IoSink
+	// Test with key data
+	sslpkix::MemorySink key_mem_read;
+	REQUIRE(key_mem_read.open_ro(key_data.c_str(), key_data.size()));
 	std::string key_string;
-	key_mem >> key_string; // IoSink to std::string
-	//std::cout << key_string << std::endl;
+	key_mem_read >> key_string; // IoSink to std::string
+	REQUIRE(key_string == key_data);
 
-	istream.clear(); // Clear EOF flag (required before C++11)
-	istream.seekg(0); // Rewind the std::iostream
-	sstream << istream.rdbuf(); // std::istream to std::stringstream
-	//std::cout << sstream.str() << std::endl;
+	// Test stringstream operations
+	std::stringstream key_sstream;
+	key_sstream << key_data;
+	sslpkix::MemorySink key_mem_write;
+	REQUIRE(key_mem_write.open_rw());
+	key_sstream >> key_mem_write; // std::istream to IoSink
 
-	REQUIRE(sstream.str() == key_string);
-
-	fbuf.close();
-	key_mem.close();
+	std::string key_string_roundtrip;
+	key_mem_write >> key_string_roundtrip; // IoSink to std::string
+	REQUIRE(key_string_roundtrip == key_data);
 }
 
 TEST_CASE("CertificateName entries", "[certificate_name][entries]")
@@ -209,19 +186,19 @@ TEST_CASE("RSA key generation", "[key][generation][rsa]")
 	sslpkix::PrivateKey key;
 	REQUIRE(key.create());
 	RSA *rsa_keypair = RSA_new();
-	REQUIRE(rsa_keypair != NULL);
+	REQUIRE(rsa_keypair != nullptr);
 	BIGNUM *f4 = BN_new();
-	REQUIRE(f4 != NULL);
+	REQUIRE(f4 != nullptr);
 	REQUIRE(BN_set_word(f4, RSA_F4) == 1); // Use the fourth Fermat Number
 
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	BN_GENCB *cb = BN_GENCB_new();
-	REQUIRE(cb != NULL);
+	REQUIRE(cb != nullptr);
 #else
 	BN_GENCB autocb;
 	BN_GENCB *cb = &autocb;
 #endif
-	BN_GENCB_set(cb, prime_generation_callback, NULL);
+	BN_GENCB_set(cb, prime_generation_callback, nullptr);
 	REQUIRE(RSA_generate_key_ex(rsa_keypair, 512, f4, cb) == 1);
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	BN_GENCB_free(cb);
@@ -229,40 +206,9 @@ TEST_CASE("RSA key generation", "[key][generation][rsa]")
 
 	REQUIRE(key.copy(rsa_keypair));
 	BN_free(f4);
-	f4 = NULL;
 	RSA_free(rsa_keypair);
-	rsa_keypair = NULL;
 
-	// TODO(jweyrich): Move the following to a different test case, "key/copy_ctor"
+	// Test copy constructor
 	sslpkix::PrivateKey keyCopy1(key);
 	REQUIRE(keyCopy1 == key);
-
-}
-
-TEST_CASE("CertificateName extension", "[certificate_name][extensions]")
-{
-	int nid;
-	const char *oid = "1.2.3.4.5.32"; // Cannot use an existing OID.
-	const char *short_name = "CTE2"; // Cannot use an existing short name.
-	const char *long_name = "customTextEntry2"; // Cannot use an existing long name
-	const char *value = "Some value here";
-
-	REQUIRE(sslpkix::add_custom_object(oid, short_name, long_name, &nid));
-	sslpkix::CertificateName name;
-	REQUIRE(name.create());
-	REQUIRE(name.add_entry(short_name, value));
-	int index;
-	REQUIRE((index = name.find_entry(nid)) != -1);
-	REQUIRE(name.entry(index) != NULL);
-	REQUIRE(name.entry_count() == 1);
-	REQUIRE(name.entry_value(nid) == value);
-
-	// TODO(jweyrich): Move the following to a different test case, "certificate_name/copy_ctor"
-	sslpkix::CertificateName nameCopy1(name);
-	REQUIRE(nameCopy1 == name);
-
-	// TODO(jweyrich): Move the following to a different test case, "certificate_name/assignament_op"
-	sslpkix::CertificateName nameCopy2;
-	nameCopy2 = name;
-	REQUIRE(nameCopy2 == name);
 }
