@@ -71,7 +71,7 @@ TEST_CASE("Certificate creation", "[certificate][creation]")
 	REQUIRE(rsa_keypair != NULL);
 	BIGNUM *f4 = BN_new();
 	REQUIRE(f4 != NULL);
-	REQUIRE(BN_set_word(f4, RSA_F4) != 0); // Use the fourth Fermat Number
+	REQUIRE(BN_set_word(f4, RSA_F4) == 1); // Use the fourth Fermat Number
 
 
 
@@ -83,7 +83,7 @@ TEST_CASE("Certificate creation", "[certificate][creation]")
 	BN_GENCB *cb = &autocb;
 #endif
 	BN_GENCB_set(cb, prime_generation_callback, NULL);
-	REQUIRE(RSA_generate_key_ex(rsa_keypair, 1024, f4, cb) != 0);
+	REQUIRE(RSA_generate_key_ex(rsa_keypair, 1024, f4, cb) == 1);
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	BN_GENCB_free(cb);
 #endif
@@ -212,7 +212,7 @@ TEST_CASE("RSA key generation", "[key][generation][rsa]")
 	REQUIRE(rsa_keypair != NULL);
 	BIGNUM *f4 = BN_new();
 	REQUIRE(f4 != NULL);
-	REQUIRE(BN_set_word(f4, RSA_F4) != 0); // Use the fourth Fermat Number
+	REQUIRE(BN_set_word(f4, RSA_F4) == 1); // Use the fourth Fermat Number
 
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	BN_GENCB *cb = BN_GENCB_new();
@@ -222,7 +222,7 @@ TEST_CASE("RSA key generation", "[key][generation][rsa]")
 	BN_GENCB *cb = &autocb;
 #endif
 	BN_GENCB_set(cb, prime_generation_callback, NULL);
-	REQUIRE(RSA_generate_key_ex(rsa_keypair, 512, f4, cb) != 0);
+	REQUIRE(RSA_generate_key_ex(rsa_keypair, 512, f4, cb) == 1);
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	BN_GENCB_free(cb);
 #endif
