@@ -45,6 +45,10 @@ public:
         return static_cast<bool>(handle_);
     }
 
+    virtual std::string read_all() const {
+        return "";
+    }
+
     virtual std::string source() const {
         return "<IoSink>";
     }
@@ -79,6 +83,33 @@ public:
     // Overloaded version for C-style strings (for backward compatibility)
     virtual bool open(const char* filename, const char* mode) {
         return open(std::string(filename), std::string(mode));
+    }
+
+    virtual std::string read_all() const override {
+        if (!is_open()) {
+            throw std::runtime_error("Cannot read from closed file: " + source());
+        }
+
+        BIO *bio = handle();
+        std::string result;
+        char buffer[4096];  // 4KB buffer
+
+        while (true) {
+            int bytesRead = BIO_read(bio, buffer, sizeof(buffer));
+            if (bytesRead > 0) {
+                result.append(buffer, bytesRead);
+            } else if (bytesRead == 0) {
+                break;  // EOF
+            } else {
+                if (!BIO_should_retry(bio)) {
+                    // BIO_read failed and it's not a retryable error
+                    throw std::runtime_error("BIO_read failed");
+                }
+                // If it's retryable, you might want to add sleep/retry logic
+            }
+        }
+
+        return result;
     }
 
     std::string source() const override {
@@ -164,6 +195,17 @@ public:
         buffer_ = nullptr;
         size_ = 0;
         return true;
+    }
+
+    virtual std::string read_all() const override {
+        if (!is_open()) {
+            std::cerr << "Cannot read from closed memory sink" << std::endl;
+            return "";
+        }
+
+        char* data = nullptr;
+        int len = BIO_get_mem_data(handle(), &data);
+        return std::string(data, len);
     }
 
     std::string source() const override {
