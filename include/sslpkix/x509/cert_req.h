@@ -133,6 +133,8 @@ public:
             return false;
         }
 
+        // X509_REQ_set_pubkey does not take ownership of the key
+        // so we need to also set it as an external handle below.
         if (X509_REQ_set_pubkey(_handle.get(), key.handle()) == 0) {
             std::cerr << "Failed to set public key. Reason: " << get_error_string() << std::endl;
             return false;
@@ -151,10 +153,9 @@ public:
         return _pubkey;
     }
 
-    // Sign the certificate request
-    bool sign(PrivateKey& key, Digest::type_e digest = Digest::TYPE_SHA1) {
-        if (!_handle) {
-            std::cerr << "Invalid certificate request handle" << std::endl;
+    // Sign the certificate request. Can be used with a private key or a public key
+    bool sign(Key& key, Digest::type_e digest = Digest::TYPE_SHA1) {
+        if (check_missing_handle(__func__)) {
             return false;
         }
 
