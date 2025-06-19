@@ -159,7 +159,7 @@ public:
     };
 
 protected:
-    std::shared_ptr<EVP_PKEY> _handle;
+    std::shared_ptr<EVP_PKEY> _handle{nullptr, detail::EVP_PKEY_Deleter{}};
 
 public:
     // Default constructor

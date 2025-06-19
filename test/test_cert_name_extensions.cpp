@@ -20,7 +20,7 @@ static const char * const OID_usersLimit = "1.2.3.4.5.31.33.72";
 static const char * const value_usersLimit = "10";
 static int nid_usersLimit;
 
-// Runs before anu tests in this file
+// Runs before any tests in this file
 struct FileScopedListenerCertNameExtensions :  Catch::EventListenerBase {
     using EventListenerBase::EventListenerBase; // inherit constructor
 

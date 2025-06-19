@@ -27,10 +27,10 @@ public:
 		}
 	};
 
-    using unique_ptr_type = std::unique_ptr<X509_NAME, Deleter>;
+    using handle_ptr = std::unique_ptr<X509_NAME, Deleter>;
 
 private:
-    unique_ptr_type handle_ = unique_ptr_type(nullptr, Deleter{true});
+    handle_ptr handle_{nullptr, Deleter{true}};
 
 public:
     // Constructors
@@ -290,7 +290,7 @@ protected:
 
     // Wrap external handle (does not take ownership)
     void wrap_external(X509_NAME* handle) {
-        handle_ = unique_ptr_type(handle, Deleter{false});
+        handle_ = handle_ptr(handle, Deleter{false});
     }
 
     friend class Certificate;
