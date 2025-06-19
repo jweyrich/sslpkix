@@ -316,17 +316,18 @@ private:
             return;
         }
 
-        _version = static_cast<Version>(X509_get_version(_handle.get()));
-        _serial = ASN1_INTEGER_get(X509_get_serialNumber(_handle.get()));
+        auto cert = _handle.get();
+        _version = static_cast<Version>(X509_get_version(cert));
+        _serial = ASN1_INTEGER_get(X509_get_serialNumber(cert));
 
         // Handle potential overflow warning
         if (_serial == 0xffffffffL) {
-            std::cerr << "Warning: Certificate serial number is too large to fit in a long\n";
+            std::cerr << "Warning: Certificate serial number is too large to fit in a long" << std::endl;
         }
 
-        _pubkey.set_external_handle(X509_get_pubkey(_handle.get()));
-        _subject.wrap_external(X509_get_subject_name(_handle.get()));
-        _issuer.wrap_external(X509_get_issuer_name(_handle.get()));
+        _pubkey.set_external_handle(X509_get_pubkey(cert));
+        _subject.wrap_external(X509_get_subject_name(cert));
+        _issuer.wrap_external(X509_get_issuer_name(cert));
     }
 
 private:
