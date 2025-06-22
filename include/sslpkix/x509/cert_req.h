@@ -3,6 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <functional>
+#include <stdexcept>
 #include <openssl/x509v3.h>
 #include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
@@ -12,9 +13,7 @@ namespace sslpkix {
 
 class CertificateRequest {
 public:
-    using handle_type = X509_REQ;
-
-	// Custom deleter for OpenSSL X509_NAME
+	// Custom deleter for OpenSSL X509_REQ
     struct Deleter {
 		void operator()(X509_REQ* ptr) const noexcept {
 			if (ptr) {
@@ -23,7 +22,8 @@ public:
 		}
 	};
 
-    using unique_ptr_type = std::unique_ptr<X509_REQ, Deleter>;
+    using handle_type = X509_REQ;
+    using unique_ptr_type = std::unique_ptr<handle_type, Deleter>;
 
     enum class Version : int {
         v1 = X509_REQ_VERSION_1,
@@ -31,25 +31,36 @@ public:
     };
 
 public:
-    // Default constructor
+    // Default constructor - creates a new certificate request
     CertificateRequest()
         : _handle(nullptr, Deleter{})
-        , _version(Version::invalid)
+    {
+        auto* new_handle = X509_REQ_new();
+        if (!new_handle) {
+            throw std::runtime_error("Failed to create certificate request. Reason: " + get_error_string());
+        }
+
+        _handle.reset(new_handle);
+    }
+
+    // Constructor that creates an empty/invalid certificate request (for loading from external sources)
+    explicit CertificateRequest(std::nullptr_t)
+        : _handle(nullptr, Deleter{})
     {
     }
 
     // Copy constructor
     CertificateRequest(const CertificateRequest& other)
         : _handle(nullptr, Deleter{})
-        , _version(Version::invalid)
     {
         if (other._handle) {
             auto other_handle = other._handle.get();
 
             EVP_PKEY *test_pkey = X509_REQ_get_pubkey(other_handle);
             if (!test_pkey) {
-                throw std::runtime_error("X509_REQ_get_pubkey failed");
+                throw std::runtime_error("X509_REQ_get_pubkey failed during copy construction. Reason: " + get_error_string());
             }
+            EVP_PKEY_free(test_pkey);
 
             // IMPORTANT: This is a workaround to avoid a bug in OpenSSL.
             // X509_REQ_dup is not working as expected in OpenSSL 3.5.0 8 Apr 2025
@@ -63,19 +74,15 @@ public:
                 OPENSSL_free(buf);
             }
             if (!dup_handle) {
-                throw std::runtime_error("Failed to duplicate certificate request");
+                throw std::runtime_error("Failed to duplicate certificate request during copy construction. Reason: " + get_error_string());
             }
             _handle.reset(dup_handle);
-            reload_data();
         }
     }
 
     // Move constructor
     CertificateRequest(CertificateRequest&& other) noexcept
         : _handle(std::move(other._handle))
-        , _version(std::move(other._version))
-        , _pubkey(std::move(other._pubkey))
-        , _subject(std::move(other._subject))
     {
     }
 
@@ -92,9 +99,6 @@ public:
     CertificateRequest& operator=(CertificateRequest&& other) noexcept {
         if (this != &other) {
             _handle = std::move(other._handle);
-            _version = std::move(other._version);
-            _pubkey = std::move(other._pubkey);
-            _subject = std::move(other._subject);
         }
         return *this;
     }
@@ -107,202 +111,200 @@ public:
         return _handle.get();
     }
 
-    // Check if the certificate request is valid
-    explicit operator bool() const noexcept {
-        return _handle != nullptr;
+    // Check if certificate request is valid
+    bool is_valid() const noexcept {
+        return _handle.get() != nullptr;
     }
 
-    // Create a new certificate request
-    bool create() {
-        auto* new_handle = X509_REQ_new();
-        if (!new_handle) {
-            std::cerr << "Failed to create certificate request. Reason: " << get_error_string() << std::endl;
-            return false;
-        }
-
-        _handle.reset(new_handle);
-        reload_data();
-        return true;
+    // Explicit bool conversion
+    explicit operator bool() const noexcept {
+        return is_valid();
     }
 
     bool set_version(Version version) {
-        if (check_missing_handle(__func__)) {
-            return false;
+        if (!_handle) {
+            throw std::logic_error("Certificate request handle is null");
+        }
+        if (version == Version::invalid) {
+            throw std::invalid_argument("Invalid certificate version");
         }
 
         long version_long = static_cast<long>(version);
         if (X509_REQ_set_version(_handle.get(), version_long) == 0) {
-            std::cerr << "Failed to set version to " << version_long << ". Reason: " << get_error_string() << std::endl;
-            return false;
+            throw std::runtime_error("Failed to set version to " + std::to_string(version_long) + ". Reason: " + get_error_string());
         }
 
-        _version = version;
         return true;
     }
 
     Version version() const noexcept {
-        return _version;
+        auto version = X509_REQ_get_version(_handle.get());
+        switch (version) {
+            case X509_REQ_VERSION_1:
+                return Version::v1;
+            default:
+                return Version::invalid;
+        }
+        return static_cast<Version>(version);
     }
 
     // Set public key
-    bool set_pubkey(Key& key) {
-        if (check_missing_handle(__func__)) {
-            return false;
+    void set_pubkey(Key& key) {
+        if (!_handle) {
+            throw std::logic_error("Certificate request handle is null");
+        }
+        if (!key.is_valid()) {
+            throw std::invalid_argument("Invalid key");
         }
 
         // X509_REQ_set_pubkey does not take ownership of the key
-        // so we need to also set it as an external handle below.
-        if (X509_REQ_set_pubkey(_handle.get(), key.handle()) == 0) {
-            std::cerr << "Failed to set public key. Reason: " << get_error_string() << std::endl;
-            return false;
-        }
+        // so we need to increment the reference count of the key.
+        EVP_PKEY_up_ref(key.handle());
 
-        _pubkey.set_external_handle(key.handle());
-        return true;
+        int ret = X509_REQ_set_pubkey(_handle.get(), key.handle());
+        if (ret == 0) {
+            throw std::runtime_error("Failed to set public key. Reason: " + get_error_string());
+        }
     }
 
     // Get public key
-    const Key& pubkey() const noexcept {
-        return _pubkey;
+    const Key pubkey() const {
+        auto pubkey = X509_REQ_get_pubkey(_handle.get());
+        if (!pubkey) {
+            throw std::runtime_error("Failed to get public key. Reason: " + get_error_string());
+        }
+
+        return Key{pubkey}; // Increments reference count
     }
 
-    Key& pubkey() noexcept {
-        return _pubkey;
+    Key pubkey() {
+        auto pubkey = X509_REQ_get_pubkey(_handle.get());
+        if (!pubkey) {
+            throw std::runtime_error("Failed to get public key. Reason: " + get_error_string());
+        }
+
+        return Key{pubkey}; // Increments reference count
     }
 
     // Sign the certificate request. Can be used with a private key or a public key
-    bool sign(Key& key, Digest::type_e digest = Digest::TYPE_SHA1) {
-        if (check_missing_handle(__func__)) {
-            return false;
+    void sign(Key& key, Digest::type_e digest = Digest::TYPE_SHA1) {
+        if (!_handle) {
+            throw std::logic_error("Certificate request handle is null");
+        }
+        if (!key.is_valid()) {
+            throw std::invalid_argument("Invalid key");
         }
 
         if (!X509_REQ_sign(_handle.get(), key.handle(), Digest::handle(digest))) {
-            std::cerr << "Failed to sign certificate request. Reason: " << get_error_string() << std::endl;
-            return false;
+            throw std::runtime_error("Failed to sign certificate request. Reason: " + get_error_string());
         }
-
-        return true;
     }
 
     // Add extensions
-    bool add_extensions(STACK_OF(X509_EXTENSION)* exts) {
-        if (check_missing_handle(__func__)) {
-            return false;
+    void add_extensions(STACK_OF(X509_EXTENSION)* exts) {
+        if (!_handle) {
+            throw std::logic_error("Certificate request handle is null");
         }
 
-        return X509_REQ_add_extensions(_handle.get(), exts) != 0;
+        if (X509_REQ_add_extensions(_handle.get(), exts) == 0) {
+            throw std::runtime_error("Failed to add extensions. Reason: " + get_error_string());
+        }
     }
 
     // Set subject
-    bool set_subject(CertificateName& subject) {
-        if (check_missing_handle(__func__)) {
-            return false;
+    void set_subject(CertificateName& subject) {
+        if (!_handle) {
+            throw std::logic_error("Certificate request handle is null");
         }
 
         if (X509_REQ_set_subject_name(_handle.get(), subject.handle()) == 0) {
-            std::cerr << "Failed to set subject name. Reason: " << get_error_string() << std::endl;
-            return false;
+            throw std::runtime_error("Failed to set subject name. Reason: " + get_error_string());
         }
-
-        _subject.wrap_external(X509_REQ_get_subject_name(_handle.get()));
-        return true;
     }
 
     // Get subject
-    const CertificateName& subject() const noexcept {
-        return _subject;
+    const CertificateName subject() const {
+        auto subject = X509_REQ_get_subject_name(_handle.get());
+        if (!subject) {
+            throw std::runtime_error("Failed to get subject name. Reason: " + get_error_string());
+        }
+        // Create a proper copy instead of wrapping external handle
+        auto* duplicated = X509_NAME_dup(subject);
+        if (!duplicated) {
+            throw std::runtime_error("Failed to duplicate subject name. Reason: " + get_error_string());
+        }
+        return CertificateName{duplicated}; // Takes ownership
     }
 
-    CertificateName& subject() noexcept {
-        return _subject;
+    CertificateName subject() {
+        auto subject = X509_REQ_get_subject_name(_handle.get());
+        if (!subject) {
+            throw std::runtime_error("Failed to get subject name. Reason: " + get_error_string());
+        }
+        // Create a proper copy instead of wrapping external handle
+        auto* duplicated = X509_NAME_dup(subject);
+        if (!duplicated) {
+            throw std::runtime_error("Failed to duplicate subject name. Reason: " + get_error_string());
+        }
+        return CertificateName{duplicated}; // Takes ownership
     }
 
     // Verify signature
     bool verify_signature(Key& key) const {
-        if (check_missing_handle(__func__)) {
-            return false;
+        if (!_handle) {
+            throw std::logic_error("Certificate request handle is null");
+        }
+        if (!key.is_valid()) {
+            throw std::invalid_argument("Invalid key");
         }
 
-        return X509_REQ_verify(_handle.get(), key.handle()) != 0;
+        return X509_REQ_verify(_handle.get(), key.handle()) == 1;
     }
 
     // Check private key
     bool check_private_key(PrivateKey& key) const {
-        if (check_missing_handle(__func__)) {
-            return false;
+        if (!_handle) {
+            throw std::logic_error("Certificate request handle is null");
+        }
+        if (!key.is_valid()) {
+            throw std::invalid_argument("Invalid key");
         }
 
         return X509_REQ_check_private_key(_handle.get(), key.handle()) != 0;
     }
 
     // Load from IoSink
-    virtual bool load(IoSink& sink) {
+    virtual void load(IoSink& sink) {
         auto* new_handle = PEM_read_bio_X509_REQ(sink.handle(), nullptr, nullptr, nullptr);
         if (!new_handle) {
-            std::cerr << "Failed to load certificate request: " << sink.source() << ". Reason: " << get_error_string() << std::endl;
-            return false;
+            throw std::runtime_error("Failed to load certificate request from " + sink.source() + ". Reason: " + get_error_string());
         }
 
         _handle.reset(new_handle);
-        reload_data();
-        return true;
     }
 
     // Save to IoSink
-    virtual bool save(IoSink& sink) const {
-        if (check_missing_handle(__func__)) {
-            return false;
+    virtual void save(IoSink& sink) const {
+        if (!_handle) {
+            throw std::logic_error("Certificate request handle is null");
         }
 
         if (!X509_REQ_print(sink.handle(), _handle.get()) ||
             !PEM_write_bio_X509_REQ(sink.handle(), _handle.get())) {
-            std::cerr << "Failed to save certificate request: " << sink.source() << ". Reason: " << get_error_string() << std::endl;
-            return false;
+            throw std::runtime_error("Failed to save certificate request to " + sink.source() + ". Reason: " + get_error_string());
         }
-
-        return true;
     }
 
 private:
-    // Reload internal data from handle
-    void reload_data() {
-        if (!_handle) {
-            _version = Version::invalid;
-            _pubkey.set_external_handle(nullptr);
-            _subject.wrap_external(nullptr);
-            return;
-        }
-
-        auto req = _handle.get();
-        _version = static_cast<Version>(X509_REQ_get_version(req));
-
-        auto pkey = X509_REQ_get_pubkey(req);
-        if (pkey) {
-            // Only set public key if we can get it
-            _pubkey.set_external_handle(pkey);
-            EVP_PKEY_free(pkey);
-        }
-
-        auto subject = X509_REQ_get_subject_name(req);
-        if (subject) {
-            // Only set subject if we can get it
-            _subject.wrap_external(subject);
-        }
-    }
-
-    bool check_missing_handle(const std::string& callerName) const {
-        if (!_handle) {
-            std::cerr << "Invalid certificate request handle in " << callerName << std::endl;
-            return true;
-        }
-        return false;
+    // Helper method to get OpenSSL error string (you'll need to implement this)
+    std::string get_error_string() const {
+        // This is a placeholder - you'll need to implement proper OpenSSL error handling
+        // For example, using ERR_get_error() and ERR_error_string()
+        return "OpenSSL error occurred";
     }
 
 private:
     unique_ptr_type _handle;
-    Version _version{Version::invalid};
-    Key _pubkey;
-    CertificateName _subject;
 };
 
 } // namespace sslpkix
