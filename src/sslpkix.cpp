@@ -3,11 +3,14 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 #include <openssl/opensslv.h>
+#include <openssl/provider.h>
 #if defined(_WIN32)
 #  include <NTSecAPI.h>
 #endif
 
 namespace sslpkix {
+
+static OSSL_PROVIDER* g_provider = nullptr;
 
 bool startup(void) {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -24,6 +27,7 @@ bool startup(void) {
 		| OPENSSL_INIT_ENGINE_RDRAND
 		;
 	OPENSSL_init_crypto(opts, NULL);
+	g_provider = OSSL_PROVIDER_load(nullptr, "default");
 #endif
 	return true;
 }
@@ -41,6 +45,10 @@ void shutdown(void) {
 #else
 	// FIXME(jweyrich): Figure out if we're missing a cleanup to avoid the curent memory leaks.
 	// Test using: valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all -s --num-callers=40 ./run_tests
+	if (g_provider) {
+		OSSL_PROVIDER_unload(g_provider);
+		g_provider = nullptr;
+	}
 	X509V3_EXT_cleanup(); // Not needed in OpenSSL 3.x
 	OPENSSL_cleanup();
 #endif
