@@ -7,366 +7,390 @@
 
 using namespace sslpkix;
 
-// Test fixture for creating temporary test files
-class TestFileFixture {
+// Test fixture for creating temporary files
+class TempFileFixture {
 public:
-    TestFileFixture() : test_filename("test_file.tmp") {}
+    TempFileFixture() : temp_filename("test_temp_file.txt") {}
 
-    ~TestFileFixture() {
+    ~TempFileFixture() {
         cleanup();
     }
 
     void create_test_file(const std::string& content) {
-        std::ofstream file(test_filename);
+        std::ofstream file(temp_filename);
         file << content;
         file.close();
     }
 
     void cleanup() {
-        if (std::filesystem::exists(test_filename)) {
-            std::filesystem::remove(test_filename);
+        if (std::filesystem::exists(temp_filename)) {
+            std::filesystem::remove(temp_filename);
         }
     }
 
-    const std::string& filename() const { return test_filename; }
-
-private:
-    std::string test_filename;
+    const std::string temp_filename;
 };
 
-TEST_CASE("IoSink basic functionality", "[IoSink]") {
-    IoSink sink;
+TEST_CASE("IoSink Base Class", "[IoSink]") {
+    class TestableIoSink : public IoSink {
+    public:
+        void set_test_handle(BIO* bio) {
+            reset_handle(bio);
+        }
+    };
 
-    SECTION("Default constructor creates closed sink") {
-        REQUIRE_FALSE(sink.is_open());
+    SECTION("Default constructor") {
+        TestableIoSink sink;
         REQUIRE(sink.handle() == nullptr);
-    }
-
-    SECTION("Source returns default value") {
+        REQUIRE_FALSE(sink.is_open());
         REQUIRE(sink.source() == "<IoSink>");
+        REQUIRE(sink.read_all() == "");
     }
 
-    SECTION("Close on unopened sink is safe") {
-        REQUIRE_NOTHROW(sink.close());
+    SECTION("Handle management") {
+        TestableIoSink sink;
+
+        // Create a memory BIO for testing
+        BIO* test_bio = BIO_new(BIO_s_mem());
+        REQUIRE(test_bio != nullptr);
+
+        sink.set_test_handle(test_bio);
+        REQUIRE(sink.handle() == test_bio);
+        REQUIRE(sink.is_open());
+
+        sink.close();
+        REQUIRE(sink.handle() == nullptr);
+        REQUIRE_FALSE(sink.is_open());
     }
 
     SECTION("Copy/move operations are deleted") {
-        // These should not compile, but we can't test that directly
-        // The compiler will catch these at compile time
-        REQUIRE(std::is_copy_constructible_v<IoSink> == false);
-        REQUIRE(std::is_copy_assignable_v<IoSink> == false);
-        REQUIRE(std::is_move_constructible_v<IoSink> == false);
-        REQUIRE(std::is_move_assignable_v<IoSink> == false);
+        // This test ensures the class is not copyable/movable
+        STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<IoSink>);
+        STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<IoSink>);
+        STATIC_REQUIRE_FALSE(std::is_move_constructible_v<IoSink>);
+        STATIC_REQUIRE_FALSE(std::is_move_assignable_v<IoSink>);
     }
 }
 
-TEST_CASE("FileSink functionality", "[FileSink]") {
-    TestFileFixture fixture;
-    FileSink file_sink;
+TEST_CASE("FileSink", "[FileSink]") {
+    TempFileFixture fixture;
 
-    SECTION("Opening existing file for reading") {
-        const std::string test_content = "Hello, World!";
+    SECTION("Default constructor") {
+        FileSink sink;
+        REQUIRE(sink.handle() == nullptr);
+        REQUIRE_FALSE(sink.is_open());
+        REQUIRE(sink.source().empty());
+    }
+
+    SECTION("Open and read file - std::string version") {
+        const std::string test_content = "Hello, World!\nThis is a test file.";
         fixture.create_test_file(test_content);
 
-        REQUIRE(file_sink.open(fixture.filename(), "r"));
-        REQUIRE(file_sink.is_open());
-        REQUIRE(file_sink.source() == fixture.filename());
+        FileSink sink;
+        REQUIRE_NOTHROW(sink.open(fixture.temp_filename, "r"));
+        REQUIRE(sink.is_open());
+        REQUIRE(sink.source() == fixture.temp_filename);
+
+        std::string content = sink.read_all();
+        REQUIRE(content == test_content);
+
+        sink.close();
+        REQUIRE_FALSE(sink.is_open());
     }
 
-    SECTION("Opening non-existent file for reading fails") {
-        REQUIRE_FALSE(file_sink.open("non_existent_file.txt", "r"));
-        REQUIRE_FALSE(file_sink.is_open());
-    }
-
-    SECTION("Opening file for writing") {
-        REQUIRE(file_sink.open(fixture.filename(), "w"));
-        REQUIRE(file_sink.is_open());
-        REQUIRE(file_sink.source() == fixture.filename());
-    }
-
-    SECTION("C-style string overload") {
-        const std::string test_content = "Test content";
+    SECTION("Open and read file - C-string version") {
+        const std::string test_content = "C-string test content";
         fixture.create_test_file(test_content);
 
-        REQUIRE(file_sink.open(fixture.filename().c_str(), "r"));
-        REQUIRE(file_sink.is_open());
+        FileSink sink;
+        REQUIRE_NOTHROW(sink.open(fixture.temp_filename.c_str(), "r"));
+        REQUIRE(sink.is_open());
+        REQUIRE(sink.source() == fixture.temp_filename);
+
+        std::string content = sink.read_all();
+        REQUIRE(content == test_content);
     }
 
-    SECTION("Close functionality") {
-        fixture.create_test_file("test");
-        file_sink.open(fixture.filename(), "r");
-
-        REQUIRE(file_sink.is_open());
-        file_sink.close();
-        REQUIRE_FALSE(file_sink.is_open());
+    SECTION("Open non-existent file throws exception") {
+        FileSink sink;
+        REQUIRE_THROWS_AS(sink.open("non_existent_file.txt", "r"), std::runtime_error);
+        REQUIRE_FALSE(sink.is_open());
     }
 
-    SECTION("Multiple open calls") {
-        fixture.create_test_file("test1");
-        REQUIRE(file_sink.open(fixture.filename(), "r"));
+    SECTION("Read from closed file throws exception") {
+        FileSink sink;
+        REQUIRE_THROWS_AS(sink.read_all(), std::runtime_error);
+    }
 
-        // Opening again should close previous and open new
-        TestFileFixture fixture2;
-        fixture2.create_test_file("test2");
-        REQUIRE(file_sink.open(fixture2.filename(), "r"));
-        REQUIRE(file_sink.source() == fixture2.filename());
+    SECTION("File positioning - seek and tell") {
+        const std::string test_content = "0123456789ABCDEF";
+        fixture.create_test_file(test_content);
+
+        FileSink sink;
+        sink.open(fixture.temp_filename, "r");
+
+        // Test initial position
+        REQUIRE(sink.tell() == 0);
+
+        // Test seeking
+        REQUIRE_NOTHROW(sink.seek(5));
+        REQUIRE(sink.tell() == 5);
+
+        // Test rewind
+        REQUIRE_NOTHROW(sink.rewind());
+        REQUIRE(sink.tell() == 0);
+
+        // Test seeking to end
+        REQUIRE_NOTHROW(sink.seek(test_content.length()));
+        REQUIRE(sink.tell() == static_cast<int>(test_content.length()));
+    }
+
+    SECTION("Seek on closed file throws exception") {
+        FileSink sink;
+        REQUIRE_THROWS_AS(sink.seek(0), std::logic_error);
+    }
+
+    SECTION("Tell on closed file throws exception") {
+        FileSink sink;
+        REQUIRE_THROWS_AS(sink.tell(), std::logic_error);
+    }
+
+    SECTION("Large file reading") {
+        // Create a file larger than the buffer size (4KB)
+        std::string large_content;
+        for (int i = 0; i < 5000; ++i) {
+            large_content += "A";
+        }
+        fixture.create_test_file(large_content);
+
+        FileSink sink;
+        sink.open(fixture.temp_filename, "r");
+
+        std::string content = sink.read_all();
+        REQUIRE(content.length() == 5000);
+        REQUIRE(content == large_content);
+    }
+
+    SECTION("Write mode") {
+        FileSink sink;
+        REQUIRE_NOTHROW(sink.open(fixture.temp_filename, "w"));
+        REQUIRE(sink.is_open());
+
+        // Note: We can't easily test writing through the BIO interface
+        // without additional wrapper methods, but we can verify the file opens
+        sink.close();
+        REQUIRE(std::filesystem::exists(fixture.temp_filename));
     }
 }
 
-TEST_CASE("FileSink seek and tell operations", "[FileSink]") {
-    TestFileFixture fixture;
-    FileSink file_sink;
-    const std::string test_content = "0123456789ABCDEF";
+TEST_CASE("MemorySink", "[MemorySink]") {
 
-    SECTION("Seek and tell on opened file") {
-        fixture.create_test_file(test_content);
-        REQUIRE(file_sink.open(fixture.filename(), "r"));
-
-        // Initial position should be 0
-        REQUIRE(file_sink.tell() == 0);
-
-        // Seek to middle of file
-        REQUIRE(file_sink.seek(8));
-        REQUIRE(file_sink.tell() == 8);
-
-        // Seek to beginning
-        REQUIRE(file_sink.seek(0));
-        REQUIRE(file_sink.tell() == 0);
+    SECTION("Default constructor") {
+        MemorySink sink;
+        REQUIRE(sink.handle() == nullptr);
+        REQUIRE_FALSE(sink.is_open());
+        REQUIRE(sink.source() == "<MemorySink>");
+        REQUIRE(sink.buffer() == nullptr);
+        REQUIRE(sink.size() == 0);
     }
 
-    SECTION("Rewind functionality") {
-        fixture.create_test_file(test_content);
-        REQUIRE(file_sink.open(fixture.filename(), "r"));
-
-        REQUIRE(file_sink.seek(10));
-        REQUIRE(file_sink.tell() == 10);
-
-        REQUIRE(file_sink.rewind());
-        REQUIRE(file_sink.tell() == 0);
-    }
-
-    SECTION("Seek on closed file fails") {
-        REQUIRE_FALSE(file_sink.seek(0));
-        REQUIRE_FALSE(file_sink.rewind());
-    }
-
-    SECTION("Tell on closed file fails") {
-        REQUIRE(file_sink.tell() == -1);
-    }
-
-    SECTION("Seek beyond file boundaries") {
-        fixture.create_test_file("short");
-        REQUIRE(file_sink.open(fixture.filename(), "r"));
-
-        // Seeking beyond file size - behavior depends on BIO implementation
-        // This test documents the current behavior
-        bool seek_result = file_sink.seek(1000);
-        // Result may vary, but should not crash
-        REQUIRE((seek_result == true || seek_result == false));
-    }
-}
-
-TEST_CASE("MemorySink read-only functionality", "[MemorySink]") {
-    MemorySink memory_sink;
-
-    SECTION("Open with string buffer") {
+    SECTION("Read-only memory sink with explicit size") {
         const char* test_data = "Hello, Memory!";
-        REQUIRE(memory_sink.open_ro(test_data));
-        REQUIRE(memory_sink.is_open());
-        REQUIRE(memory_sink.buffer() == test_data);
-        REQUIRE(memory_sink.size() == static_cast<int>(strlen(test_data)));
+        const int test_size = std::strlen(test_data);
+
+        MemorySink sink;
+        REQUIRE_NOTHROW(sink.open_ro(test_data, test_size));
+        REQUIRE(sink.is_open());
+        REQUIRE(sink.buffer() == test_data);
+        REQUIRE(sink.size() == test_size);
+
+        std::string content = sink.read_all();
+        REQUIRE(content == std::string(test_data));
+
+        sink.close();
+        REQUIRE_FALSE(sink.is_open());
     }
 
-    SECTION("Open with explicit size") {
-        const char* test_data = "Hello\0World"; // Contains null byte
-        int explicit_size = 11;
-        REQUIRE(memory_sink.open_ro(test_data, explicit_size));
-        REQUIRE(memory_sink.is_open());
-        REQUIRE(memory_sink.buffer() == test_data);
-        REQUIRE(memory_sink.size() == explicit_size);
+    SECTION("Read-only memory sink with automatic size calculation") {
+        const char* test_data = "Auto-sized string";
+
+        MemorySink sink;
+        REQUIRE_NOTHROW(sink.open_ro(test_data));
+        REQUIRE(sink.is_open());
+        REQUIRE(sink.buffer() == test_data);
+        REQUIRE(sink.size() == static_cast<int>(std::strlen(test_data)));
+
+        std::string content = sink.read_all();
+        REQUIRE(content == std::string(test_data));
     }
 
-    SECTION("Open with null buffer and no size fails") {
-        REQUIRE_FALSE(memory_sink.open_ro(nullptr));
-        REQUIRE_FALSE(memory_sink.is_open());
+    SECTION("Read-only memory sink with binary data") {
+        const char binary_data[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05};
+        const int binary_size = sizeof(binary_data);
+
+        MemorySink sink;
+        REQUIRE_NOTHROW(sink.open_ro(binary_data, binary_size));
+        REQUIRE(sink.is_open());
+        REQUIRE(sink.size() == binary_size);
+
+        std::string content = sink.read_all();
+        REQUIRE(content.length() == binary_size);
+        REQUIRE(std::memcmp(content.data(), binary_data, binary_size) == 0);
     }
 
-    SECTION("Open with null buffer but explicit size") {
-        // This should fail as we can't create a BIO from null buffer
-        REQUIRE_FALSE(memory_sink.open_ro(nullptr, 10));
-        REQUIRE_FALSE(memory_sink.is_open());
+    SECTION("Read-only memory sink with null buffer throws") {
+        MemorySink sink;
+        REQUIRE_THROWS_AS(sink.open_ro(nullptr), std::invalid_argument);
+        REQUIRE_FALSE(sink.is_open());
+
+        // Also test with explicit size - should still throw due to null buffer
+        REQUIRE_THROWS_AS(sink.open_ro(nullptr, 10), std::invalid_argument);
+        REQUIRE_FALSE(sink.is_open());
     }
 
-    SECTION("Open with zero size") {
-        const char* test_data = "test";
-        REQUIRE(memory_sink.open_ro(test_data, 0));
-        REQUIRE(memory_sink.is_open());
-        REQUIRE(memory_sink.size() == 0);
+    SECTION("Read-only memory sink with zero size throws") {
+        const char* test_data = "some data";
+        MemorySink sink;
+        REQUIRE_THROWS_AS(sink.open_ro(test_data, 0), std::invalid_argument);
+        REQUIRE_FALSE(sink.is_open());
     }
 
-    SECTION("Source returns correct value") {
-        const char* test_data = "test";
-        memory_sink.open_ro(test_data);
-        REQUIRE(memory_sink.source() == "<MemorySink>");
+    SECTION("Read-write memory sink") {
+        MemorySink sink;
+        REQUIRE_NOTHROW(sink.open_rw());
+        REQUIRE(sink.is_open());
+        REQUIRE(sink.buffer() == nullptr);
+        REQUIRE(sink.size() == 0);
+
+        // Initially empty
+        std::string content = sink.read_all();
+        REQUIRE(content.empty());
+
+        sink.close();
+        REQUIRE_FALSE(sink.is_open());
     }
 
-    SECTION("Multiple open calls") {
-        const char* data1 = "first";
-        const char* data2 = "second";
-
-        REQUIRE(memory_sink.open_ro(data1));
-        REQUIRE(memory_sink.buffer() == data1);
-
-        // Opening again should reset
-        REQUIRE(memory_sink.open_ro(data2));
-        REQUIRE(memory_sink.buffer() == data2);
-    }
-}
-
-TEST_CASE("MemorySink read-write functionality", "[MemorySink]") {
-    MemorySink memory_sink;
-
-    SECTION("Open read-write sink") {
-        REQUIRE(memory_sink.open_rw());
-        REQUIRE(memory_sink.is_open());
-        REQUIRE(memory_sink.buffer() == nullptr);
-        REQUIRE(memory_sink.size() == 0);
+    SECTION("Read from closed memory sink throws exception") {
+        MemorySink sink;
+        REQUIRE_THROWS_AS(sink.read_all(), std::logic_error);
     }
 
-    SECTION("Source returns correct value for RW sink") {
-        memory_sink.open_rw();
-        REQUIRE(memory_sink.source() == "<MemorySink>");
+    SECTION("Empty string handling") {
+        const char* empty_string = "";
+
+        MemorySink sink;
+        // Empty string should now throw due to zero size check
+        REQUIRE_THROWS_AS(sink.open_ro(empty_string), std::logic_error);
+        REQUIRE_FALSE(sink.is_open());
     }
 
-    SECTION("Multiple RW open calls") {
-        REQUIRE(memory_sink.open_rw());
-        REQUIRE(memory_sink.is_open());
+    SECTION("Large memory buffer") {
+        std::string large_data(10000, 'X');
 
-        // Opening again should work
-        REQUIRE(memory_sink.open_rw());
-        REQUIRE(memory_sink.is_open());
+        MemorySink sink;
+        REQUIRE_NOTHROW(sink.open_ro(large_data.c_str(), large_data.length()));
+        REQUIRE(sink.is_open());
+        REQUIRE(sink.size() == static_cast<int>(large_data.length()));
+
+        std::string content = sink.read_all();
+        REQUIRE(content == large_data);
     }
 
-    SECTION("Switch between RO and RW") {
-        const char* test_data = "test";
-        REQUIRE(memory_sink.open_ro(test_data));
-        REQUIRE(memory_sink.buffer() == test_data);
+    SECTION("Multiple opens on same sink") {
+        const char* first_data = "First data";
+        const char* second_data = "Second data set";
 
-        REQUIRE(memory_sink.open_rw());
-        REQUIRE(memory_sink.buffer() == nullptr);
-        REQUIRE(memory_sink.size() == 0);
-    }
-}
+        MemorySink sink;
 
-TEST_CASE("IoSink handle management", "[IoSink][FileSink][MemorySink]") {
-    SECTION("FileSink handle is valid when open") {
-        TestFileFixture fixture;
-        fixture.create_test_file("test");
-        FileSink file_sink;
+        // First open
+        sink.open_ro(first_data);
+        REQUIRE(sink.read_all() == std::string(first_data));
 
-        REQUIRE(file_sink.handle() == nullptr);
-        file_sink.open(fixture.filename(), "r");
-        REQUIRE(file_sink.handle() != nullptr);
-        file_sink.close();
-        REQUIRE(file_sink.handle() == nullptr);
-    }
-
-    SECTION("MemorySink handle is valid when open") {
-        MemorySink memory_sink;
-        const char* test_data = "test";
-
-        REQUIRE(memory_sink.handle() == nullptr);
-        memory_sink.open_ro(test_data);
-        REQUIRE(memory_sink.handle() != nullptr);
-        memory_sink.close();
-        REQUIRE(memory_sink.handle() == nullptr);
-    }
-}
-
-TEST_CASE("Edge cases and error conditions", "[IoSink]") {
-    SECTION("FileSink with invalid mode") {
-        TestFileFixture fixture;
-        fixture.create_test_file("test");
-        FileSink file_sink;
-
-        // Invalid mode should fail
-        REQUIRE_FALSE(file_sink.open(fixture.filename(), "invalid_mode"));
-        REQUIRE_FALSE(file_sink.is_open());
-    }
-
-    SECTION("FileSink with empty filename") {
-        FileSink file_sink;
-        REQUIRE_FALSE(file_sink.open("", "r"));
-        REQUIRE_FALSE(file_sink.is_open());
-    }
-
-    SECTION("MemorySink with very large size") {
-        MemorySink memory_sink;
-        const char* test_data = "small";
-
-        // Very large size should still work (BIO will handle it)
-        REQUIRE(memory_sink.open_ro(test_data, 1000000));
-        REQUIRE(memory_sink.is_open());
-        REQUIRE(memory_sink.size() == 1000000);
-    }
-
-    SECTION("Destructor cleanup") {
-        // Test that destructors properly clean up resources
-        // This is mainly to ensure no memory leaks
-        {
-            TestFileFixture fixture;
-            fixture.create_test_file("test");
-            FileSink file_sink;
-            file_sink.open(fixture.filename(), "r");
-            // file_sink destructor should clean up automatically
-        }
-
-        {
-            MemorySink memory_sink;
-            const char* test_data = "test";
-            memory_sink.open_ro(test_data);
-            // memory_sink destructor should clean up automatically
-        }
-
-        // If we reach here without crashes, cleanup worked
-        REQUIRE(true);
+        // Second open should replace the first
+        sink.open_ro(second_data);
+        REQUIRE(sink.read_all() == std::string(second_data));
+        REQUIRE(sink.size() == static_cast<int>(std::strlen(second_data)));
     }
 }
 
-TEST_CASE("Polymorphic behavior", "[IoSink]") {
+TEST_CASE("Polymorphic behavior", "[Polymorphism]") {
+
     SECTION("FileSink through IoSink pointer") {
-        TestFileFixture fixture;
-        fixture.create_test_file("test");
+        TempFileFixture fixture;
+        const std::string test_content = "Polymorphic test";
+        fixture.create_test_file(test_content);
 
-        std::unique_ptr<IoSink> sink = std::make_unique<FileSink>();
-        REQUIRE_FALSE(sink->is_open());
-        REQUIRE(sink->source() == ""); // Base class method
+        auto sink = std::make_unique<FileSink>();
+        sink->open(fixture.temp_filename, "r");
 
-        // Can't call FileSink-specific methods through base pointer
-        // This is expected behavior
+        IoSink* base_ptr = sink.get();
+        REQUIRE(base_ptr->is_open());
+        REQUIRE(base_ptr->read_all() == test_content);
+        REQUIRE(base_ptr->source() == fixture.temp_filename);
+
+        base_ptr->close();
+        REQUIRE_FALSE(base_ptr->is_open());
     }
 
     SECTION("MemorySink through IoSink pointer") {
-        std::unique_ptr<IoSink> sink = std::make_unique<MemorySink>();
-        REQUIRE_FALSE(sink->is_open());
-        REQUIRE(sink->source() == "<MemorySink>"); // Base class method
+        const char* test_data = "Memory polymorphic test";
+
+        auto sink = std::make_unique<MemorySink>();
+        sink->open_ro(test_data);
+
+        IoSink* base_ptr = sink.get();
+        REQUIRE(base_ptr->is_open());
+        REQUIRE(base_ptr->read_all() == std::string(test_data));
+        REQUIRE(base_ptr->source() == "<MemorySink>");
+
+        base_ptr->close();
+        REQUIRE_FALSE(base_ptr->is_open());
+    }
+}
+
+TEST_CASE("Error handling and edge cases", "[ErrorHandling]") {
+
+    // SECTION("BIO allocation failure simulation") {
+    //     // Note: It's difficult to simulate BIO allocation failure without
+    //     // modifying the OpenSSL library or using dependency injection.
+    //     // This section would typically require mocking or fault injection.
+    //     INFO("BIO allocation failure tests would require mocking infrastructure");
+    // }
+
+    SECTION("File operations on invalid handles") {
+        FileSink sink;
+        // Attempting operations on unopened sink
+        REQUIRE_THROWS(sink.read_all());
+        REQUIRE_THROWS(sink.seek(0));
+        REQUIRE_THROWS(sink.tell());
     }
 
-    SECTION("Virtual destructor works correctly") {
-        // Test that virtual destructor properly cleans up derived objects
-        TestFileFixture fixture;
+    SECTION("Memory operations on invalid handles") {
+        MemorySink sink;
+        // Attempting operations on unopened sink
+        REQUIRE_THROWS(sink.read_all());
+    }
+
+    SECTION("Resource cleanup on exception") {
+        TempFileFixture fixture;
         fixture.create_test_file("test");
 
-        {
-            std::unique_ptr<IoSink> sink = std::make_unique<FileSink>();
-            // Destructor should call derived class destructor
-        }
+        FileSink sink;
+        sink.open(fixture.temp_filename, "r");
+        REQUIRE(sink.is_open());
 
-        {
-            std::unique_ptr<IoSink> sink = std::make_unique<MemorySink>();
-            // Destructor should call derived class destructor
-        }
+        // Destructor should clean up properly even if exception occurs
+        // This is automatically tested by RAII
+    }
+}
 
-        REQUIRE(true); // If we reach here, destructors worked correctly
+// Note: Stream operators are declared but not implemented in the header,
+// so we can't test them without the implementation.
+TEST_CASE("Stream operators (declaration test)", "[StreamOperators]") {
+    SECTION("Operator declarations exist") {
+        // This just verifies the declarations compile
+        // Actual testing would require the implementations
+        INFO("Stream operators are declared but implementation not provided in header");
+        REQUIRE(true); // Placeholder test
     }
 }

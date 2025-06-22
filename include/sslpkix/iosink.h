@@ -37,7 +37,7 @@ public:
         return handle_.get();
     }
 
-    virtual void close() {
+    virtual void close() noexcept {
         handle_.reset();
     }
 
@@ -49,7 +49,7 @@ public:
         return "";
     }
 
-    virtual std::string source() const {
+    virtual std::string source() const noexcept {
         return "<IoSink>";
     }
 
@@ -66,23 +66,19 @@ class FileSink : public IoSink {
 public:
     FileSink() = default;
 
-    virtual bool open(const std::string& filename, const std::string& mode) {
-        reset_handle();
-
+    virtual void open(const std::string& filename, const std::string& mode) {
         BIO* bio = BIO_new_file(filename.c_str(), mode.c_str());
         if (!bio) {
-            std::cerr << "Failed to open file: " << filename << std::endl;
-            return false;
+            throw std::runtime_error("Failed to open file: " + filename);
         }
 
         reset_handle(bio);
         filename_ = filename;
-        return true;
     }
 
     // Overloaded version for C-style strings (for backward compatibility)
-    virtual bool open(const char* filename, const char* mode) {
-        return open(std::string(filename), std::string(mode));
+    virtual void open(const char* filename, const char* mode) {
+        open(std::string(filename), std::string(mode));
     }
 
     virtual std::string read_all() const override {
@@ -112,38 +108,33 @@ public:
         return result;
     }
 
-    std::string source() const override {
+    std::string source() const noexcept override {
         return filename_;
     }
 
-    bool rewind() {
-        return seek(0);
+    void rewind() {
+        seek(0);
     }
 
-    bool seek(long offset) {
+    void seek(long offset) {
         if (!is_open()) {
-            std::cerr << "Cannot seek on closed file" << std::endl;
-            return false;
+            throw std::logic_error("Cannot seek on closed file");
         }
 
         int ret = BIO_seek(handle(), offset);
         if (ret == -1) {
-            std::cerr << "Failed to seek to file offset: " << offset << std::endl;
-            return false;
+            throw std::runtime_error("Failed to seek to file offset: " + std::to_string(offset));
         }
-        return true;
     }
 
     int tell() const {
         if (!is_open()) {
-            std::cerr << "Cannot tell on closed file" << std::endl;
-            return -1;
+            throw std::logic_error("Cannot tell on closed file");
         }
 
         int ret = BIO_tell(handle());
         if (ret == -1) {
-            std::cerr << "Failed to tell on file" << std::endl;
-            return -1;
+            throw std::runtime_error("Failed to tell on file");
         }
         return ret;
     }
@@ -156,51 +147,48 @@ class MemorySink : public IoSink {
 public:
     MemorySink() = default;
 
-    virtual bool open_ro(const void* buffer, int size = -1) {
-        reset_handle();
+    virtual void open_ro(const void* buffer, int size = -1) {
+        if (!buffer) {
+            throw std::invalid_argument("Buffer cannot be null");
+        }
+        if (size == 0) {
+            throw std::invalid_argument("Size cannot be zero");
+        }
 
         // Calculate size if not provided
         int actual_size = size;
         if (size == -1) {
-            if (!buffer) {
-                std::cerr << "Cannot determine size of null buffer" << std::endl;
-                return false;
-            }
             actual_size = static_cast<int>(std::strlen(static_cast<const char*>(buffer)));
+            if (actual_size == 0) {
+                throw std::invalid_argument("Buffer cannot be empty (calculated size is zero)");
+            }
         }
 
         // BIO_new_mem_buf expects non-const void*, but it's used read-only
-        BIO* bio = BIO_new_mem_buf(const_cast<void*>(buffer), actual_size);
+        BIO* bio = BIO_new_mem_buf(buffer, actual_size);
         if (!bio) {
-            std::cerr << "Failed to create readonly memory BIO" << std::endl;
-            return false;
+            throw std::runtime_error("Failed to create read-only memory BIO");
         }
 
         reset_handle(bio);
         buffer_ = buffer;
         size_ = actual_size;
-        return true;
     }
 
-    virtual bool open_rw() {
-        reset_handle();
-
+    virtual void open_rw() {
         BIO* bio = BIO_new(BIO_s_mem());
         if (!bio) {
-            std::cerr << "Failed to create read-write memory BIO" << std::endl;
-            return false;
+            throw std::bad_alloc();
         }
 
         reset_handle(bio);
         buffer_ = nullptr;
         size_ = 0;
-        return true;
     }
 
     virtual std::string read_all() const override {
         if (!is_open()) {
-            std::cerr << "Cannot read from closed memory sink" << std::endl;
-            return "";
+            throw std::logic_error("Cannot read from closed memory sink");
         }
 
         char* data = nullptr;
@@ -208,7 +196,7 @@ public:
         return std::string(data, len);
     }
 
-    std::string source() const override {
+    std::string source() const noexcept override {
         return "<MemorySink>";
     }
 
