@@ -37,32 +37,30 @@ public:
     CertificateName() {
         auto* new_handle = X509_NAME_new();
         if (!new_handle) {
-            throw std::runtime_error("Failed to create certificate name");
+            throw std::bad_alloc();
         }
-        handle_.reset(new_handle);
+        reset(new_handle);
     }
 
-    // Create from existing X509_NAME (takes ownership)
-    explicit CertificateName(X509_NAME* handle) : handle_(handle, Deleter{true}) {
-        if (!handle_) {
-            throw std::invalid_argument("Cannot create CertificateName from null handle");
-        }
-    }
+    // Constructor for external handle (does not create new name)
+    // Does not increment reference count
+    // Does not take ownership
+    explicit CertificateName(X509_NAME* external_handle) : handle_(external_handle, Deleter{false}) {}
 
     // Copy constructor - deep copy
     CertificateName(const CertificateName& other) {
         if (other.handle_) {
             reset(X509_NAME_dup(other.handle_.get()));
             if (!handle_) {
-                throw std::runtime_error("Failed to duplicate X509_NAME");
+                throw std::runtime_error("Failed to duplicate X509_NAME. Reason: " + get_error_string());
             }
         } else {
             // If other is empty, create a new empty certificate name
             auto* new_handle = X509_NAME_new();
             if (!new_handle) {
-                throw std::runtime_error("Failed to create certificate name");
+                throw std::bad_alloc();
             }
-            handle_.reset(new_handle);
+            reset(new_handle);
         }
     }
 
@@ -75,15 +73,15 @@ public:
             if (other.handle_) {
                 reset(X509_NAME_dup(other.handle_.get()));
                 if (!handle_) {
-                    throw std::runtime_error("Failed to duplicate X509_NAME");
+                    throw std::runtime_error("Failed to duplicate X509_NAME. Reason: " + get_error_string());
                 }
             } else {
                 // If other is empty, create a new empty certificate name
                 auto* new_handle = X509_NAME_new();
                 if (!new_handle) {
-                    throw std::runtime_error("Failed to create certificate name");
+                    throw std::bad_alloc();
                 }
-                handle_.reset(new_handle);
+                reset(new_handle);
             }
         }
         return *this;
@@ -101,9 +99,14 @@ public:
         return handle_.get();
     }
 
-    // Check if valid
+    // Check if certificate name is valid
+    bool is_valid() const noexcept {
+        return handle_.get() != nullptr;
+    }
+
+    // Explicit bool conversion
     explicit operator bool() const noexcept {
-        return static_cast<bool>(handle_);
+        return is_valid();
     }
 
     // Add an entry to the certificate name
@@ -286,11 +289,6 @@ protected:
     // Reset with new handle (takes ownership)
     void reset(X509_NAME* handle = nullptr) {
         handle_.reset(handle);
-    }
-
-    // Wrap external handle (does not take ownership)
-    void wrap_external(X509_NAME* handle) {
-        handle_ = handle_ptr(handle, Deleter{false});
     }
 
     friend class Certificate;

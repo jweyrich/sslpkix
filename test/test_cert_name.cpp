@@ -64,8 +64,16 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName handle constructor
 		REQUIRE(name.handle() == raw_name);
 	}
 
-	SECTION("Null handle throws exception") {
-		REQUIRE_THROWS_AS(CertificateName(nullptr), std::invalid_argument);
+	SECTION("Null handle does not throw exception") {
+		REQUIRE_NOTHROW(CertificateName(nullptr));
+	}
+
+	SECTION("Constructing with null handle") {
+		CertificateName null_name(nullptr);
+		REQUIRE_FALSE(null_name);
+		REQUIRE(null_name.handle() == nullptr);
+		REQUIRE_FALSE(null_name.is_valid());
+		REQUIRE(null_name.entry_count() == 0);
 	}
 }
 
