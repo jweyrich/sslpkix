@@ -81,8 +81,8 @@ set(CMAKE_CXX_STANDARD 17)
 # Build type specific compile options - cross-platform
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     # GCC and Clang flags
-    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -DDEBUG")
-    set(CMAKE_C_FLAGS_DEBUG "-O0 -g3 -DDEBUG")
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -DDEBUG -fsanitize=address")
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -g3 -DDEBUG -fsanitize=address")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
     set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
@@ -214,10 +214,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_target_properties(${LIBNAME} PROPERTIES
         LINK_FLAGS "-Wl,-soname,${LIBNAME}.so.${PROJECT_VERSION_MAJOR}"
     )
+    # Add AddressSanitizer linker flags for debug builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set_target_properties(${LIBNAME} PROPERTIES
+            LINK_FLAGS "${CMAKE_LINK_FLAGS} -fsanitize=address"
+        )
+    endif()
 elseif(APPLE)
     set_target_properties(${LIBNAME} PROPERTIES
         LINK_FLAGS "-headerpad_max_install_names -flat_namespace"
     )
+    # Add AddressSanitizer linker flags for debug builds on macOS
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set_target_properties(${LIBNAME} PROPERTIES
+            LINK_FLAGS "${CMAKE_LINK_FLAGS} -fsanitize=address"
+        )
+    endif()
 elseif(WIN32)
     if(MINGW)
         # MinGW-specific linker flags
@@ -252,6 +264,13 @@ if(TEST_SOURCES)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND UNIX AND NOT APPLE AND NOT WIN32)
         target_compile_options(${TESTNAME} PRIVATE -rdynamic)
         target_link_libraries(${TESTNAME} PRIVATE ${CMAKE_DL_LIBS})
+    endif()
+
+    # Add AddressSanitizer linker flags for debug builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set_target_properties(${TESTNAME} PROPERTIES
+            LINK_FLAGS "${CMAKE_LINK_FLAGS} -fsanitize=address"
+        )
     endif()
 
     # Test compile definitions
