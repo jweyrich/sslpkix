@@ -347,14 +347,21 @@ public:
         return X509_verify(_handle.get(), key.handle()) == 1;
     }
 
-    bool check_private_key(const PrivateKey& key) const {
+    /**
+     * @brief Checks if the provided key matches the private key in the certificate.
+     * @note It compares the public key in the certificate with the public key in the provided key.
+     */
+    bool matches_private_key(const Key& key) const {
         if (!_handle) {
             throw std::logic_error("Certificate handle is null");
         }
         if (!key.is_valid()) {
             throw std::invalid_argument("Invalid key");
         }
-        return X509_check_private_key(_handle.get(), key.handle()) != 0;
+
+        EVP_PKEY* this_pkey = X509_get0_pubkey(_handle.get());
+        EVP_PKEY* provided_pkey = key.handle();
+        return EVP_PKEY_cmp(this_pkey, provided_pkey) == 1;
     }
 
     virtual void load(IoSink& sink) {

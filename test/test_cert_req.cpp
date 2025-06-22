@@ -213,7 +213,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Signing Oper
 
     SECTION("Check private key correspondence") {
         REQUIRE_NOTHROW(req.sign(testPrivateKey));
-        REQUIRE(req.check_private_key(testPrivateKey));
+        REQUIRE(req.matches_private_key(testPrivateKey));
     }
 }
 
@@ -262,13 +262,13 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Verification
     }
 
     SECTION("Check private key with correct key") {
-        REQUIRE(req.check_private_key(testPrivateKey));
+        REQUIRE(req.matches_private_key(testPrivateKey));
     }
 
     SECTION("Verification fails on default constructed request") {
         CertificateRequest req;
         REQUIRE_FALSE(req.verify_signature(testPublicKey));
-        REQUIRE_FALSE(req.check_private_key(testPrivateKey));
+        REQUIRE_FALSE(req.matches_private_key(testPrivateKey));
     }
 }
 
@@ -353,7 +353,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Complete Wor
 
         // Step 5: Verify the request
         REQUIRE(req.verify_signature(testPublicKey));
-        REQUIRE(req.check_private_key(testPrivateKey));
+        REQUIRE(req.matches_private_key(testPrivateKey));
 
         // Step 6: Save the request
         MemorySink sink;
@@ -378,6 +378,6 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Error Handli
         REQUIRE_THROWS_AS(req.set_subject(testSubject), std::logic_error);
         REQUIRE_THROWS_AS(req.sign(testPrivateKey), std::logic_error);
         REQUIRE_THROWS_AS(req.verify_signature(testPublicKey), std::logic_error);
-        REQUIRE_THROWS_AS(req.check_private_key(testPrivateKey), std::logic_error);
+        REQUIRE_THROWS_AS(req.matches_private_key(testPrivateKey), std::logic_error);
     }
 }

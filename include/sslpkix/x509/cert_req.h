@@ -261,8 +261,11 @@ public:
         return X509_REQ_verify(_handle.get(), key.handle()) == 1;
     }
 
-    // Check private key
-    bool check_private_key(PrivateKey& key) const {
+    /**
+     * @brief Checks if the provided key matches the private key in the certificate request.
+     * @note It compares the public key in the certificate request with the public key in the provided key.
+     */
+    bool matches_private_key(const Key& key) const {
         if (!_handle) {
             throw std::logic_error("Certificate request handle is null");
         }
@@ -270,7 +273,9 @@ public:
             throw std::invalid_argument("Invalid key");
         }
 
-        return X509_REQ_check_private_key(_handle.get(), key.handle()) != 0;
+        EVP_PKEY* this_pkey = X509_REQ_get0_pubkey(_handle.get());
+        EVP_PKEY* provided_pkey = key.handle();
+        return EVP_PKEY_cmp(this_pkey, provided_pkey) == 1;
     }
 
     // Load from IoSink
