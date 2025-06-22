@@ -43,7 +43,7 @@ public:
     }
 
     bool is_valid() const noexcept {
-        return _handle != nullptr;
+        return _handle.get() != nullptr;
     }
 
     bool create() {
@@ -135,7 +135,7 @@ public:
     }
 
     bool is_valid() const noexcept {
-        return _handle != nullptr;
+        return _handle.get() != nullptr;
     }
 
     bool create() {
@@ -161,8 +161,8 @@ class CertificateVerifier {
 public:
     // More info: http://www.openssl.org/docs/apps/verify.html#VERIFY_OPERATION
     bool verify(
-        CertificateStore& store,
-        CertificateStoreContext& ctx,
+        const CertificateStore& store,
+        const CertificateStoreContext& ctx,
         Certificate& cert,
         [[maybe_unused]] unsigned long flags = 0,
         int purpose = -1)
@@ -197,9 +197,10 @@ public:
 
         // Check the certificate
         ret = X509_verify_cert(pctx);
-        if (ret < 0) {
-            std::cerr << "Verify failed: " << X509_STORE_CTX_get_error(pctx) << '\n';
+        if (ret != 1) {
+            std::cerr << "Verify failed: " << get_error_string() << '\n';
         }
+
 
         return ret == 1;
     }

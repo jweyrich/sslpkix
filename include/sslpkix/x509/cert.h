@@ -8,6 +8,7 @@
 #include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
+#include "sslpkix/error.h"
 
 namespace sslpkix {
 
@@ -55,7 +56,7 @@ public:
         if (other._handle) {
             auto* duplicated = X509_dup(other._handle.get());
             if (!duplicated) {
-                throw std::bad_alloc();
+                throw std::runtime_error("Failed to duplicate certificate. Reason: " + get_error_string());
             }
             _handle.reset(duplicated);
         }
