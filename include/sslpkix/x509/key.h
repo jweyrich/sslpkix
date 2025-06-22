@@ -5,6 +5,7 @@
 #include <functional>
 #include <type_traits>
 #include <stdexcept>
+#include <openssl/core_names.h>
 #include <openssl/opensslv.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -228,16 +229,72 @@ public:
         return _handle.get() != nullptr;
     }
 
+    /**
+     * @brief Returns true if the key has a public key.
+     */
+    bool has_public_key() const noexcept {
+        if (!is_valid()) {
+            return false;
+        }
+        auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(
+            EVP_PKEY_CTX_new_from_pkey(NULL, _handle.get(), NULL),
+            EVP_PKEY_CTX_free
+        );
+        return ctx && EVP_PKEY_public_check_quick(ctx.get()) == 1;
+    }
+
+    /**
+     * @brief Returns true if the key has a private key.
+     */
+    bool has_private_key() const noexcept {
+        if (!is_valid()) {
+            return false;
+        }
+        auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(
+            EVP_PKEY_CTX_new_from_pkey(NULL, _handle.get(), NULL),
+            EVP_PKEY_CTX_free
+        );
+        return ctx && EVP_PKEY_private_check(ctx.get()) == 1;
+    }
+
     // Get algorithm type
     Cipher::Type algorithm() const {
         int algorithm = detail::get_algorithm_type(_handle.get());
         return static_cast<Cipher::Type>(algorithm);
     }
 
-    // Get bit length
-    // Returns 0 if the size is not available or the key is not valid
+    /**
+     * @brief Returns the bit length of the key, or 0 if the size is not available or the key is not valid.
+     */
     int bit_length() const {
         return EVP_PKEY_bits(_handle.get());
+    }
+
+    /**
+     * @brief Returns the type name of the key, or "unknown" if the key is not valid.
+     */
+    std::string type_name() const noexcept{
+        const char* name = EVP_PKEY_get0_type_name(_handle.get());
+        if (!name) {
+            return "unknown";
+        }
+        return std::string(name);
+    }
+
+    /**
+     * @brief Returns the base type of the key (EVP_PKEY_RSA, EVP_PKEY_DSA, etc.),
+     * or EVP_PKEY_NONE if the key is not valid.
+     */
+    int base_type() const noexcept {
+        return EVP_PKEY_get_base_id(_handle.get());
+    }
+
+    /**
+     * @brief Returns true if the key can be used to sign data.
+     * @note It does not mean that the key is a private key.
+     */
+    bool can_sign() const noexcept {
+        return EVP_PKEY_can_sign(_handle.get()) == 1;
     }
 
     // Template-based cipher operations
@@ -295,6 +352,12 @@ public:
         return nullptr;
     }
 
+    virtual void print(FILE* stream = stdout) const noexcept {
+        BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
+        EVP_PKEY_print_public(bio_out, _handle.get(), 0, NULL);
+        BIO_free(bio_out);
+    }
+
     // Virtual methods for derived classes
     virtual void load(IoSink& sink [[maybe_unused]], const char* password [[maybe_unused]]) {
         // TODO(jweyrich): implement this using PEM_read_bio_PUBKEY
@@ -315,6 +378,118 @@ public:
 
     friend bool operator!=(const Key& lhs, const Key& rhs) {
         return !(lhs == rhs);
+    }
+
+    // TODO(jweyrich): Move to a KeyExtractor class that supports specialized extraction of public keys
+    std::unique_ptr<Key> extract_public_key() const {
+        if (!_handle) {
+            return nullptr;
+        }
+
+        const char* key_type = EVP_PKEY_get0_type_name(_handle.get());
+        if (!key_type) {
+            throw std::runtime_error("Failed on EVP_PKEY_get0_type_name. Reason: " + get_error_string());
+            return nullptr;
+        }
+
+        auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(
+            EVP_PKEY_CTX_new_from_name(nullptr, key_type, nullptr),
+            EVP_PKEY_CTX_free
+        );
+        if (!ctx) {
+            throw std::runtime_error("Failed on EVP_PKEY_CTX_new_from_name. Reason: " + get_error_string());
+            return nullptr;
+        }
+
+        if (EVP_PKEY_fromdata_init(ctx.get()) != 1) {
+            throw std::runtime_error("Failed on EVP_PKEY_fromdata_init. Reason: " + get_error_string());
+        }
+
+        std::vector<OSSL_PARAM> pub_params;
+
+        if (strcmp(key_type, "RSA") == 0) {
+            BIGNUM* n = nullptr;
+            BIGNUM* e = nullptr;
+            if (EVP_PKEY_get_bn_param(_handle.get(), OSSL_PKEY_PARAM_RSA_N, &n) != 1 ||
+                EVP_PKEY_get_bn_param(_handle.get(), OSSL_PKEY_PARAM_RSA_E, &e) != 1)
+            {
+                throw std::runtime_error("Failed on EVP_PKEY_get_bn_param. Reason: " + get_error_string());
+            }
+
+            // Returns the size of the minimal big-endian representation
+            int n_len = BN_num_bytes(n);
+            int e_len = BN_num_bytes(e);
+
+            std::vector<unsigned char> n_buf(n_len);
+            std::vector<unsigned char> e_buf(e_len);
+
+            // Converts BIGNUMs into fixed-size, zero-padded, big-endian binary buffers
+            if (BN_bn2binpad(n, n_buf.data(), n_len) != n_len ||
+                BN_bn2binpad(e, e_buf.data(), e_len) != e_len)
+            {
+                BN_free(n);
+                BN_free(e);
+                throw std::runtime_error("Failed on BN_bn2binpad. Reason: " + get_error_string());
+            }
+
+            pub_params = {
+                OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, n_buf.data(), n_len),
+                OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E, e_buf.data(), e_len),
+                OSSL_PARAM_construct_end()
+            };
+
+            BN_free(n);
+            BN_free(e);
+        } else if (strcmp(key_type, "EC") == 0) {
+            // Extract curve name
+            char curve_name[80];
+            size_t curve_len = 0;
+            if (EVP_PKEY_get_utf8_string_param(_handle.get(), OSSL_PKEY_PARAM_GROUP_NAME, curve_name, sizeof(curve_name), &curve_len) != 1) {
+                throw std::runtime_error("Failed on EVP_PKEY_get_utf8_string_param. Reason: " + get_error_string());
+            }
+
+            // Get public key
+            size_t pubkey_len = 0;
+            if (EVP_PKEY_get_octet_string_param(_handle.get(), OSSL_PKEY_PARAM_PUB_KEY, nullptr, 0, &pubkey_len) != 1) {
+                throw std::runtime_error("Failed on EVP_PKEY_get_octet_string_param (size). Reason: " + get_error_string());
+            }
+
+            std::vector<unsigned char> pubkey(pubkey_len);
+            if (EVP_PKEY_get_octet_string_param(_handle.get(), OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len, nullptr) != 1) {
+                throw std::runtime_error("Failed on EVP_PKEY_get_octet_string_param (data). Reason: " + get_error_string());
+            }
+
+            pub_params = {
+                OSSL_PARAM_construct_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, curve_name, 0),
+                OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len),
+                OSSL_PARAM_construct_end()
+            };
+        } else if (strcmp(key_type, "ED25519") == 0 || strcmp(key_type, "ED448") == 0) {
+            size_t pubkey_len = 0;
+            if (EVP_PKEY_get_octet_string_param(_handle.get(), OSSL_PKEY_PARAM_PUB_KEY, nullptr, 0, &pubkey_len) != 1) {
+                throw std::runtime_error("Failed on EVP_PKEY_get_octet_string_param (size). Reason: " + get_error_string());
+            }
+
+            std::vector<unsigned char> pubkey(pubkey_len);
+            if (EVP_PKEY_get_octet_string_param(_handle.get(), OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len, nullptr) != 1) {
+                throw std::runtime_error("Failed on EVP_PKEY_get_octet_string_param (data). Reason: " + get_error_string());
+            }
+
+            pub_params = {
+                OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len),
+                OSSL_PARAM_construct_end()
+            };
+        } else {
+            // Unsupported or custom key type
+            return nullptr;
+        }
+
+        EVP_PKEY* pub_key = nullptr;
+        if (EVP_PKEY_fromdata(ctx.get(), &pub_key, EVP_PKEY_PUBLIC_KEY, pub_params.data()) != 1) {
+            throw std::runtime_error("Failed on EVP_PKEY_fromdata. Reason: " + get_error_string());
+        }
+
+        return std::make_unique<Key>(pub_key);
     }
 
 protected:
@@ -375,6 +550,12 @@ public:
 
     virtual ~PrivateKey() {
         // std::cout << "Destroying PrivateKey " << key_id << std::endl;
+    }
+
+    virtual void print(FILE* stream = stdout) const noexcept override {
+        BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
+        EVP_PKEY_print_private(bio_out, _handle.get(), 0, NULL);
+        BIO_free(bio_out);
     }
 
     // Load private key from IoSink
@@ -439,6 +620,9 @@ public:
 
 // Factory functions for creating keys
 namespace factory {
+    // Move to a KeyGenerator class?
+    EVP_PKEY* generate_key_ex(const char* key_type, const OSSL_PARAM* params = nullptr);
+
     inline std::unique_ptr<Key> make_key() {
         try {
             return std::make_unique<Key>();
@@ -453,6 +637,28 @@ namespace factory {
         } catch (const KeyException&) {
             return nullptr;
         }
+    }
+
+    inline EVP_PKEY* generate_key_rsa(int bits = 1024) {
+        const OSSL_PARAM params[] = {
+            OSSL_PARAM_int(OSSL_PKEY_PARAM_RSA_BITS, &bits),
+            OSSL_PARAM_END
+        };
+
+        return factory::generate_key_ex("RSA", params);
+    }
+
+    inline EVP_PKEY* generate_key_ec_p256() {
+        const char* curve_name = "P-256";
+        OSSL_PARAM params[] = {
+            OSSL_PARAM_utf8_string("curve", const_cast<char*>(curve_name), 0),
+            OSSL_PARAM_END
+        };
+        return factory::generate_key_ex("EC", params);
+    }
+
+    inline EVP_PKEY* generate_key_ed25519() {
+        return factory::generate_key_ex("ED25519");
     }
 
     // Template-based key creation
