@@ -198,16 +198,16 @@ public:
     }
 
     // Move constructor
-    Key(Key&& other) noexcept : _handle(std::move(other._handle)) {
+    Key(Key&& other) noexcept : _handle(std::move(other._handle)), key_id(other.key_id) {
         other._handle.reset(); // Ensure moved-from key is in a valid state
-        key_id = static_key_counter++;
-        // std::cout << "Creating key (move) " << key_id << std::endl;
+        // std::cout << "Creating key (move) " << other.key_id << std::endl;
     }
 
     // Move assignment
     Key& operator=(Key&& other) noexcept {
-        // std::cout << "Moving key " << other.key_id << " to " << key_id << std::endl;
+        // std::cout << "Moving Key " << other.key_id << " to " << key_id << std::endl;
         _handle = std::move(other._handle);
+        key_id = std::move(other.key_id);
         other._handle.reset(); // Ensure moved-from key is in a valid state
         return *this;
     }
@@ -353,6 +353,7 @@ public:
     PrivateKey& operator=(PrivateKey&& other) noexcept {
         // std::cout << "Moving PrivateKey " << other.key_id << " to " << key_id << std::endl;
         _handle = std::move(other._handle);
+        key_id = std::move(other.key_id);
         other._handle.reset(); // Ensure moved-from key is in a valid state
         return *this;
     }
