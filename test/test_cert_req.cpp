@@ -21,18 +21,7 @@ struct CertificateRequestTestFixture {
     ~CertificateRequestTestFixture()  = default;
 
     EVP_PKEY* createTestKeyPair(int bits = 512) {
-        std::unique_ptr<BIGNUM, decltype(&BN_free)> bn(BN_new(), BN_free);
-        REQUIRE(BN_set_word(bn.get(), RSA_F4) == 1);
-
-        RSA* rsa = RSA_new();
-        REQUIRE(RSA_generate_key_ex(rsa, bits, bn.get(), nullptr) == 1);
-
-        EVP_PKEY* pkey = EVP_PKEY_new();
-        // Ownership of rsa is transferred to pkey
-        REQUIRE(EVP_PKEY_assign_RSA(pkey, rsa) == 1);
-
-        // pkey and rsa are now owned by the Key objects
-        return pkey;
+        return factory::generate_key_rsa(bits);
     }
 
     CertificateName createTestCertificateName() {
