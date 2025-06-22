@@ -13,8 +13,6 @@ namespace sslpkix {
 
 class Certificate {
 public:
-	using handle_type = X509;
-
 	// Custom deleter for OpenSSL X509
 	struct Deleter {
 		void operator()(X509* ptr) const noexcept {
@@ -24,7 +22,8 @@ public:
 		}
 	};
 
-    using handle_ptr = std::unique_ptr<X509, Deleter>;
+    using handle_type = X509;
+    using handle_ptr = std::unique_ptr<handle_type, Deleter>;
 
     enum class Version : int {
         v1 = X509_VERSION_1,
@@ -41,7 +40,6 @@ public:
             throw std::bad_alloc();
         }
         _handle.reset(new_cert);
-        reload_data();
     }
 
     // Constructor for creating certificate from existing X509 handle
@@ -50,7 +48,6 @@ public:
             throw std::invalid_argument("Certificate handle cannot be null");
         }
         _handle.reset(cert_handle);
-        reload_data();
     }
 
     // Copy constructor
@@ -61,7 +58,6 @@ public:
                 throw std::bad_alloc();
             }
             _handle.reset(duplicated);
-            reload_data();
         }
     }
 
@@ -95,7 +91,7 @@ public:
 
     // Check if certificate is valid/loaded
     bool is_valid() const noexcept {
-        return _handle != nullptr;
+        return _handle.get() != nullptr;
     }
 
     // Explicit bool conversion
@@ -107,11 +103,14 @@ public:
         if (!_handle) {
             throw std::logic_error("Certificate handle is null");
         }
+        if (version == Version::invalid) {
+            throw std::invalid_argument("Invalid certificate version");
+        }
 
         long version_long = static_cast<long>(version);
         int ret = X509_set_version(_handle.get(), version_long);
         if (ret == 0) {
-            throw std::runtime_error("Failed to set certificate version to " + std::to_string(version_long));
+            throw std::runtime_error("Failed to set certificate version to " + std::to_string(version_long) + ". Reason: " + get_error_string());
         }
     }
 
@@ -128,7 +127,7 @@ public:
         ASN1_INTEGER* serial_number = X509_get_serialNumber(_handle.get());
         int result = ASN1_INTEGER_set(serial_number, serial);
         if (result == 0) {
-            throw std::runtime_error("Failed to set certificate serial number");
+            throw std::runtime_error("Failed to set certificate serial number. Reason: " + get_error_string());
         }
     }
 
@@ -141,7 +140,6 @@ public:
             throw std::overflow_error("Certificate serial number is too large to fit in a long");
         }
         return serial;
-
     }
 
     void set_valid_since(int days) {
@@ -149,10 +147,10 @@ public:
             throw std::logic_error("Certificate handle is null");
         }
 
-        ASN1_TIME* not_before = X509_get_notBefore(_handle.get());
+        ASN1_TIME* not_before = X509_getm_notBefore(_handle.get());
         ASN1_TIME* result = X509_gmtime_adj(not_before, static_cast<long>(60) * 60 * 24 * days);
         if (!result) {
-            throw std::runtime_error("Failed to set certificate valid since");
+            throw std::runtime_error("Failed to set certificate valid since. Reason: " + get_error_string());
         }
     }
 
@@ -161,10 +159,10 @@ public:
             throw std::logic_error("Certificate handle is null");
         }
 
-        ASN1_TIME* not_after = X509_get_notAfter(_handle.get());
+        ASN1_TIME* not_after = X509_getm_notAfter(_handle.get());
         ASN1_TIME* result = X509_gmtime_adj(not_after, static_cast<long>(60) * 60 * 24 * days);
         if (!result) {
-            throw std::runtime_error("Failed to set certificate valid until");
+            throw std::runtime_error("Failed to set certificate valid until. Reason: " + get_error_string());
         }
     }
 
@@ -172,29 +170,48 @@ public:
         if (!_handle) {
             throw std::logic_error("Certificate handle is null");
         }
+        if (!key.is_valid()) {
+            throw std::invalid_argument("Invalid key");
+        }
+
+        // X509_set_pubkey does not take ownership of the key
+        // so we need to increment the reference count of the key.
+        EVP_PKEY_up_ref(key.handle());
 
         int ret = X509_set_pubkey(_handle.get(), key.handle());
         if (ret == 0) {
-            throw std::runtime_error("Failed to set public key");
+            throw std::runtime_error("Failed to set public key. Reason: " + get_error_string());
         }
-        _pubkey.set_external_handle(key.handle());
     }
 
-    const Key& pubkey() const noexcept {
-        return _pubkey;
+    const Key pubkey() const {
+        auto pubkey = X509_get_pubkey(_handle.get());
+        if (!pubkey) {
+            throw std::runtime_error("Failed to get public key. Reason: " + get_error_string());
+        }
+
+        return Key{pubkey}; // Increments reference count
     }
 
-    Key& pubkey() noexcept {
-        return _pubkey;
+    Key pubkey() {
+        auto pubkey = X509_get_pubkey(_handle.get());
+        if (!pubkey) {
+            throw std::runtime_error("Failed to get public key. Reason: " + get_error_string());
+        }
+
+        return Key{pubkey}; // Increments reference count
     }
 
     void sign(const PrivateKey& key, Digest::type_e digest = Digest::TYPE_SHA1) {
         if (!_handle) {
             throw std::logic_error("Certificate handle is null");
         }
+        if (!key.is_valid()) {
+            throw std::invalid_argument("Invalid key");
+        }
 
         if (!X509_sign(_handle.get(), key.handle(), Digest::handle(digest))) {
-            throw std::runtime_error("Failed to sign certificate");
+            throw std::runtime_error("Failed to sign certificate. Reason: " + get_error_string());
         }
     }
 
@@ -212,7 +229,7 @@ public:
 
         auto* ext = X509V3_EXT_conf_nid(nullptr, &ctx, nid, const_cast<char*>(value));
         if (!ext) {
-            throw std::runtime_error("Failed to create extension with NID: " + std::to_string(nid));
+            throw std::runtime_error("Failed to create extension with NID: " + std::to_string(nid) + ". Reason: " + get_error_string());
         }
 
         // Use RAII for extension cleanup
@@ -220,7 +237,7 @@ public:
             ext_guard(ext, &X509_EXTENSION_free);
 
         if (X509_add_ext(_handle.get(), ext, -1) == 0) {
-            throw std::runtime_error("Failed to add extension with NID: " + std::to_string(nid));
+            throw std::runtime_error("Failed to add extension with NID: " + std::to_string(nid) + ". Reason: " + get_error_string());
         }
     }
 
@@ -237,7 +254,7 @@ public:
         X509V3_set_ctx(&ctx, _handle.get(), _handle.get(), nullptr, nullptr, 0);
 
         if (X509_add_ext(_handle.get(), ext, -1) == 0) {
-            throw std::runtime_error("Failed to add extension");
+            throw std::runtime_error("Failed to add extension. Reason: " + get_error_string());
         }
     }
 
@@ -245,50 +262,96 @@ public:
         if (!_handle) {
             throw std::logic_error("Certificate handle is null");
         }
+        if (!subject.is_valid()) {
+            throw std::invalid_argument("Invalid subject");
+        }
 
         if (X509_set_subject_name(_handle.get(), subject.handle()) == 0) {
-            throw std::runtime_error("Failed to set subject name");
+            throw std::runtime_error("Failed to set subject name. Reason: " + get_error_string());
         }
-        _subject.wrap_external(X509_get_subject_name(_handle.get()));
     }
 
-    const CertificateName& subject() const noexcept {
-        return _subject;
+    const CertificateName subject() const {
+        auto subject = X509_get_subject_name(_handle.get());
+        if (!subject) {
+            throw std::runtime_error("Failed to get subject name. Reason: " + get_error_string());
+        }
+        // Create a proper copy instead of wrapping external handle
+        auto* duplicated = X509_NAME_dup(subject);
+        if (!duplicated) {
+            throw std::runtime_error("Failed to duplicate subject name. Reason: " + get_error_string());
+        }
+        return CertificateName{duplicated}; // Takes ownership
     }
 
-    CertificateName& subject() noexcept {
-        return _subject;
+    CertificateName subject() {
+        auto subject = X509_get_subject_name(_handle.get());
+        if (!subject) {
+            throw std::runtime_error("Failed to get subject name. Reason: " + get_error_string());
+        }
+        // Create a proper copy instead of wrapping external handle
+        auto* duplicated = X509_NAME_dup(subject);
+        if (!duplicated) {
+            throw std::runtime_error("Failed to duplicate subject name. Reason: " + get_error_string());
+        }
+        return CertificateName{duplicated}; // Takes ownership
     }
 
     void set_issuer(const CertificateName& issuer) {
         if (!_handle) {
             throw std::logic_error("Certificate handle is null");
         }
+        if (!issuer.is_valid()) {
+            throw std::invalid_argument("Invalid issuer");
+        }
 
         if (X509_set_issuer_name(_handle.get(), issuer.handle()) == 0) {
-            throw std::runtime_error("Failed to set issuer name");
+            throw std::runtime_error("Failed to set issuer name. Reason: " + get_error_string());
         }
-        _issuer.wrap_external(X509_get_issuer_name(_handle.get()));
     }
 
-    const CertificateName& issuer() const noexcept {
-        return _issuer;
+    const CertificateName issuer() const {
+        auto issuer = X509_get_issuer_name(_handle.get());
+        if (!issuer) {
+            throw std::runtime_error("Failed to get issuer name. Reason: " + get_error_string());
+        }
+        // Create a proper copy instead of wrapping external handle
+        auto* duplicated = X509_NAME_dup(issuer);
+        if (!duplicated) {
+            throw std::runtime_error("Failed to duplicate issuer name. Reason: " + get_error_string());
+        }
+        return CertificateName{duplicated}; // Takes ownership
     }
 
-    CertificateName& issuer() noexcept {
-        return _issuer;
+    CertificateName issuer() {
+        auto issuer = X509_get_issuer_name(_handle.get());
+        if (!issuer) {
+            throw std::runtime_error("Failed to get issuer name. Reason: " + get_error_string());
+        }
+        // Create a proper copy instead of wrapping external handle
+        auto* duplicated = X509_NAME_dup(issuer);
+        if (!duplicated) {
+            throw std::runtime_error("Failed to duplicate issuer name. Reason: " + get_error_string());
+        }
+        return CertificateName{duplicated}; // Takes ownership
     }
 
     bool verify_signature(const Key& key) const {
         if (!_handle) {
             throw std::logic_error("Certificate handle is null");
         }
-        return X509_verify(_handle.get(), key.handle()) != 0;
+        if (!key.is_valid()) {
+            throw std::invalid_argument("Invalid key");
+        }
+        return X509_verify(_handle.get(), key.handle()) == 1;
     }
 
     bool check_private_key(const PrivateKey& key) const {
         if (!_handle) {
             throw std::logic_error("Certificate handle is null");
+        }
+        if (!key.is_valid()) {
+            throw std::invalid_argument("Invalid key");
         }
         return X509_check_private_key(_handle.get(), key.handle()) != 0;
     }
@@ -300,11 +363,10 @@ public:
 
         auto* cert = PEM_read_bio_X509(sink.handle(), nullptr, nullptr, nullptr);
         if (!cert) {
-            throw std::runtime_error("Failed to load certificate from: " + sink.source());
+            throw std::runtime_error("Failed to load certificate from: " + sink.source() + ". Reason: " + get_error_string());
         }
 
         _handle.reset(cert);
-        reload_data();
     }
 
     virtual void save(const IoSink& sink) const {
@@ -317,7 +379,7 @@ public:
 
         if (!X509_print(sink.handle(), _handle.get()) ||
             !PEM_write_bio_X509(sink.handle(), _handle.get())) {
-            throw std::runtime_error("Failed to save certificate to: " + sink.source());
+            throw std::runtime_error("Failed to save certificate to: " + sink.source() + ". Reason: " + get_error_string());
         }
     }
 
@@ -327,9 +389,10 @@ public:
         if (!lhs._handle && !rhs._handle) return true;
         if (!lhs._handle || !rhs._handle) return false;
 
+        // TODO(jweyrich): Do we need to REALLY compare anything besides the handle?
         return X509_cmp(lhs._handle.get(), rhs._handle.get()) == 0 &&
-               lhs._subject == rhs._subject &&
-               lhs._issuer == rhs._issuer;
+               lhs.subject() == rhs.subject() &&
+               lhs.issuer() == rhs.issuer();
     }
 
     friend bool operator!=(const Certificate& lhs, const Certificate& rhs) {
@@ -340,28 +403,10 @@ public:
     friend void swap(Certificate& a, Certificate& b) noexcept {
         using std::swap;
         swap(a._handle, b._handle);
-        swap(a._pubkey, b._pubkey);
-        swap(a._subject, b._subject);
-        swap(a._issuer, b._issuer);
     }
 
 private:
-    void reload_data() {
-        if (!_handle) {
-            return;
-        }
-
-        auto cert = _handle.get();
-        _pubkey.set_external_handle(X509_get_pubkey(cert));
-        _subject.wrap_external(X509_get_subject_name(cert));
-        _issuer.wrap_external(X509_get_issuer_name(cert));
-    }
-
-private:
-    handle_ptr _handle{nullptr};
-    Key _pubkey;
-    CertificateName _subject;
-    CertificateName _issuer;
+    handle_ptr _handle{nullptr, Deleter()};
 };
 
 } // namespace sslpkix
