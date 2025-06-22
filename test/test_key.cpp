@@ -21,17 +21,14 @@ struct KeyTestFixture {
     // Helper to create RSA key for testing
     RSA* create_test_rsa_key() {
         #ifndef OPENSSL_NO_RSA
-        RSA* rsa = RSA_new();
-        BIGNUM* bn = BN_new();
-        if (rsa && bn) {
-            BN_set_word(bn, RSA_F4);
-            if (RSA_generate_key_ex(rsa, 512, bn, nullptr) == 1) {
-                BN_free(bn);
-                return rsa;
+        std::unique_ptr<RSA, decltype(&RSA_free)> rsa(RSA_new(), RSA_free);
+        std::unique_ptr<BIGNUM, decltype(&BN_free)> bn(BN_new(), BN_free);
+        if (rsa.get() && bn.get()) {
+            BN_set_word(bn.get(), RSA_F4);
+            if (RSA_generate_key_ex(rsa.get(), 512, bn.get(), nullptr) == 1) {
+                return rsa.release(); // Transfer ownership to caller
             }
         }
-        if (rsa) RSA_free(rsa);
-        if (bn) BN_free(bn);
         #endif
         return nullptr;
     }
@@ -95,47 +92,25 @@ struct KeyTestFixture {
         EVP_PKEY_free(pkey);
         return result;
     }
-
-    // Mock IoSink class for testing
-    class MockIoSink : public MemorySink {
-    public:
-        MockIoSink(const std::string& pem_data) {
-            if (!open_ro(pem_data.c_str(), pem_data.length())) {
-                throw std::runtime_error("Failed to open memory sink");
-            }
-        }
-    };
 };
 
 // Test Key class basic functionality
 TEST_CASE_METHOD(KeyTestFixture, "Key default constructor", "[Key][constructor]") {
     Key key;
-    REQUIRE_FALSE(key.is_valid());
-    REQUIRE(key.handle() == nullptr);
+    REQUIRE(key.is_valid());
+    REQUIRE(key.handle() != nullptr);
     REQUIRE(key.algorithm() == Key::Cipher::Type::UNKNOWN);
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Key create method", "[Key][create]") {
     Key key;
-    REQUIRE(key.create());
     REQUIRE(key.is_valid());
     REQUIRE(key.handle() != nullptr);
     REQUIRE(key.algorithm() == Key::Cipher::Type::UNKNOWN); // No cipher assigned yet
 }
 
-TEST_CASE_METHOD(KeyTestFixture, "Key copy constructor", "[Key][copy]") {
-    Key original;
-    REQUIRE(original.create());
-
-    Key copy(original);
-    REQUIRE(copy.is_valid());
-    REQUIRE(copy.handle() == original.handle()); // Should share the same handle
-    REQUIRE(copy == original);
-}
-
 TEST_CASE_METHOD(KeyTestFixture, "Key move constructor", "[Key][move]") {
     Key original;
-    REQUIRE(original.create());
     EVP_PKEY* original_handle = original.handle();
 
     Key moved(std::move(original));
@@ -148,25 +123,21 @@ TEST_CASE_METHOD(KeyTestFixture, "Key move constructor", "[Key][move]") {
 
 TEST_CASE_METHOD(KeyTestFixture, "Key assignment operators", "[Key][assignment]") {
     Key key1, key2;
-    REQUIRE(key1.create());
 
-    key2 = key1; // Copy assignment
+    key2 = std::move(key1); // Move assignment
+    REQUIRE(key1.handle() == nullptr);
+    REQUIRE_FALSE(key1.is_valid());
+    REQUIRE(key2.handle() != nullptr);
     REQUIRE(key2.is_valid());
-    REQUIRE(key1 == key2);
-
-    Key key3;
-    key3 = std::move(key1); // Move assignment
-    REQUIRE(key3.is_valid());
-    REQUIRE(key3 == key2);
+    REQUIRE(key2 != key1);
 }
 
 #ifndef OPENSSL_NO_RSA
 TEST_CASE_METHOD(KeyTestFixture, "Key RSA cipher operations", "[Key][RSA]") {
-    Key key;
-    REQUIRE(key.create());
-
     RSA* rsa = create_test_rsa_key();
     REQUIRE(rsa != nullptr);
+
+    Key key;
 
     SECTION("Assign RSA key") {
         REQUIRE(key.assign(rsa));
@@ -200,12 +171,10 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA cipher operations", "[Key][RSA]") {
 
 #ifndef OPENSSL_NO_DSA
 TEST_CASE_METHOD(KeyTestFixture, "Key DSA cipher operations", "[Key][DSA]") {
-    Key key;
-    REQUIRE(key.create());
-
     DSA* dsa = create_test_dsa_key();
     REQUIRE(dsa != nullptr);
 
+    Key key;
     REQUIRE(key.assign(dsa));
     REQUIRE(key.algorithm() == Key::Cipher::Type::DSA);
     REQUIRE(key.is_cipher_type<DSA>());
@@ -219,12 +188,10 @@ TEST_CASE_METHOD(KeyTestFixture, "Key DSA cipher operations", "[Key][DSA]") {
 
 #ifndef OPENSSL_NO_EC
 TEST_CASE_METHOD(KeyTestFixture, "Key EC cipher operations", "[Key][EC]") {
-    Key key;
-    REQUIRE(key.create());
-
     EC_KEY* ec_key = create_test_ec_key();
     REQUIRE(ec_key != nullptr);
 
+    Key key;
     REQUIRE(key.assign(ec_key));
     REQUIRE(key.algorithm() == Key::Cipher::Type::EC);
     REQUIRE(key.is_cipher_type<EC_KEY>());
@@ -248,7 +215,6 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
         RSA* rsa = create_test_rsa_key(); // Creates 512-bit RSA key
         REQUIRE(rsa != nullptr);
 
-        REQUIRE(key.create());
         REQUIRE(key.assign(rsa));
         REQUIRE(key.bit_length() == 512);
         #endif
@@ -259,7 +225,6 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
         EC_KEY* ec_key = create_test_ec_key(); // Creates P-256 key (256 bits)
         REQUIRE(ec_key != nullptr);
 
-        REQUIRE(key.create());
         REQUIRE(key.assign(ec_key));
         REQUIRE(key.bit_length() == 256);
         #endif
@@ -270,7 +235,6 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
         DSA* dsa = create_test_dsa_key(); // Creates 512-bit DSA key
         REQUIRE(dsa != nullptr);
 
-        REQUIRE(key.create());
         REQUIRE(key.assign(dsa));
         REQUIRE(key.bit_length() == 512);
         #endif
@@ -280,57 +244,59 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
 TEST_CASE_METHOD(KeyTestFixture, "Key comparison operators", "[Key][comparison]") {
     Key key1, key2, key3;
 
-    SECTION("Null keys comparison") {
-        REQUIRE(key1 == key2);
-        REQUIRE_FALSE(key1 != key2);
-    }
-
-    SECTION("Valid vs null key comparison") {
-        REQUIRE(key1.create());
-        REQUIRE_FALSE(key1 == key2);
+    SECTION("Default keys comparison") {
+        // Different keys should not be equal (even though they're both default constructed)
         REQUIRE(key1 != key2);
-    }
-
-    SECTION("Same key comparison") {
-        REQUIRE(key1.create());
-        key2 = key1;
-        REQUIRE(key1 == key2);
-        REQUIRE_FALSE(key1 != key2);
+        REQUIRE_FALSE(key1 == key2);
     }
 
     SECTION("Different keys comparison") {
-        REQUIRE(key1.create());
-        REQUIRE(key2.create());
-        // Different keys should not be equal (even though they're both empty)
-        // This test might be implementation dependent
+        Key copied_key1(key1.handle());
+        REQUIRE(copied_key1 == key1);
+        REQUIRE_FALSE(copied_key1 != key1);
+
+        Key copied_key2(key2.handle());
+        REQUIRE(copied_key2 == key2);
+        REQUIRE_FALSE(copied_key2 != key2);
+
+        Key new_key3(std::move(key1));
+        REQUIRE(new_key3 != key1);
+        REQUIRE_FALSE(new_key3 == key1);
+        REQUIRE(new_key3.is_valid());
+        REQUIRE_FALSE(key1.is_valid());
+        REQUIRE(new_key3.handle() != nullptr);
+        REQUIRE(key1.handle() == nullptr);
     }
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Key external handle operations", "[Key][external]") {
     Key key;
 
-    SECTION("Set null external handle") {
-        key.set_external_handle(nullptr);
-        REQUIRE_FALSE(key.is_valid());
+    SECTION("Assign a null external handle") {
+        EVP_PKEY* external_key = nullptr;
+
+        Key new_key(external_key);
+        REQUIRE_FALSE(new_key.is_valid());
+        REQUIRE(new_key.handle() == external_key);
     }
 
-    SECTION("Set valid external handle") {
+    SECTION("Assign a valid external handle") {
         EVP_PKEY* external_key = EVP_PKEY_new();
         REQUIRE(external_key != nullptr);
 
-        key.set_external_handle(external_key);
-        REQUIRE(key.is_valid());
-        REQUIRE(key.handle() == external_key);
+        Key new_key(external_key);
+        REQUIRE(new_key.is_valid());
+        REQUIRE(new_key.handle() == external_key);
 
-        EVP_PKEY_free(external_key);
+        // EVP_PKEY_free(external_key);
     }
 }
 
 // Test PrivateKey class
 TEST_CASE_METHOD(KeyTestFixture, "PrivateKey default constructor", "[PrivateKey][constructor]") {
     PrivateKey private_key;
-    REQUIRE_FALSE(private_key.is_valid());
-    REQUIRE(private_key.handle() == nullptr);
+    REQUIRE(private_key.is_valid());
+    REQUIRE(private_key.handle() != nullptr);
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "PrivateKey load from PEM", "[PrivateKey][load]") {
@@ -338,9 +304,10 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey load from PEM", "[PrivateKey][load]
     REQUIRE_FALSE(pem_data.empty());
 
     PrivateKey private_key;
-    MockIoSink sink(pem_data);
+    MemorySink sink;
 
-    REQUIRE(private_key.load(sink));
+    REQUIRE_NOTHROW(sink.open_ro(pem_data.c_str(), pem_data.length()));
+    REQUIRE_NOTHROW(private_key.load(sink));
     REQUIRE(private_key.is_valid());
     REQUIRE(private_key.algorithm() == Key::Cipher::Type::RSA);
 }
@@ -351,8 +318,10 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey save to PEM", "[PrivateKey][save]")
     REQUIRE_FALSE(pem_data.empty());
 
     PrivateKey private_key;
-    MockIoSink load_sink(pem_data);
-    REQUIRE(private_key.load(load_sink));
+    MemorySink load_sink;
+
+    REQUIRE_NOTHROW(load_sink.open_ro(pem_data.c_str(), pem_data.length()));
+    REQUIRE_NOTHROW(private_key.load(load_sink));
     REQUIRE(private_key.is_valid());
     REQUIRE(private_key.algorithm() == Key::Cipher::Type::RSA);
     REQUIRE(private_key.is_cipher_type<RSA>());
@@ -360,8 +329,8 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey save to PEM", "[PrivateKey][save]")
 
     // Now save it
     MemorySink save_sink;
-    REQUIRE(save_sink.open_rw());
-    REQUIRE(private_key.save(save_sink));
+    REQUIRE_NOTHROW(save_sink.open_rw());
+    REQUIRE_NOTHROW(private_key.save(save_sink));
 
     // Test that the saved key is the same as the loaded key
     REQUIRE(save_sink.read_all() == pem_data);
@@ -389,7 +358,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Factory make_key", "[factory][make_key]") {
 TEST_CASE_METHOD(KeyTestFixture, "Factory make_private_key", "[factory][make_private_key]") {
     auto private_key = factory::make_private_key();
     REQUIRE(private_key != nullptr);
-    REQUIRE_FALSE(private_key->is_valid()); // Not created yet
+    REQUIRE(private_key->is_valid());
 }
 
 #ifndef OPENSSL_NO_RSA
@@ -404,8 +373,8 @@ TEST_CASE_METHOD(KeyTestFixture, "Factory make_key_for_cipher", "[factory][make_
 TEST_CASE_METHOD(KeyTestFixture, "Key error conditions", "[Key][error]") {
     Key key;
 
-    SECTION("Operations on invalid key") {
-        REQUIRE_FALSE(key.is_valid());
+    SECTION("Operations on default constructed key") {
+        REQUIRE(key.is_valid());
         REQUIRE(key.algorithm() == Key::Cipher::Type::UNKNOWN);
 
         #ifndef OPENSSL_NO_RSA
@@ -415,7 +384,6 @@ TEST_CASE_METHOD(KeyTestFixture, "Key error conditions", "[Key][error]") {
     }
 
     SECTION("Assign null cipher") {
-        REQUIRE(key.create());
         #ifndef OPENSSL_NO_RSA
         REQUIRE_FALSE(key.assign<RSA>(nullptr));
         REQUIRE_FALSE(key.copy<RSA>(nullptr));
@@ -426,16 +394,19 @@ TEST_CASE_METHOD(KeyTestFixture, "Key error conditions", "[Key][error]") {
 TEST_CASE_METHOD(KeyTestFixture, "PrivateKey error conditions", "[PrivateKey][error]") {
     PrivateKey private_key;
 
-    SECTION("Save invalid key") {
+    SECTION("Save default constructed key") {
         std::string empty_pem;
-        MockIoSink sink(empty_pem);
-        REQUIRE_FALSE(private_key.save(sink));
+        MemorySink sink;
+        // This should throw a std::logic_error because the buffer is empty
+        REQUIRE_THROWS_AS(sink.open_ro(empty_pem.c_str(), empty_pem.length()), std::invalid_argument);
+        REQUIRE_THROWS_AS(private_key.save(sink), std::runtime_error);
     }
 
     SECTION("Load invalid PEM") {
         std::string invalid_pem = "invalid pem data";
-        MockIoSink sink(invalid_pem);
-        REQUIRE_FALSE(private_key.load(sink));
+        MemorySink sink;
+        REQUIRE_NOTHROW(sink.open_ro(invalid_pem.c_str(), invalid_pem.length()));
+        REQUIRE_THROWS_AS(private_key.load(sink), KeyException);
     }
 }
 
