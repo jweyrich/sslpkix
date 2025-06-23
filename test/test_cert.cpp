@@ -150,7 +150,16 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Copy and Move Semantics", 
         cert.set_pubkey(*test_public_key);
         cert.sign(*test_private_key, Digest::TYPE_SHA256);
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wself-assign-overloaded"
+#endif
+
         cert = cert; // Self-assignment
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
         REQUIRE(cert.is_valid());
         REQUIRE(cert.version() == Certificate::Version::v3);

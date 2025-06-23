@@ -102,7 +102,17 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Copy Operati
     SECTION("Self-assignment") {
         CertificateRequest req;
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wself-assign-overloaded"
+#endif
+
         req = req; // Self-assignment should be safe
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
         REQUIRE(req);
         REQUIRE(req.handle() != nullptr);
     }
