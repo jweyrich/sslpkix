@@ -5,12 +5,17 @@
 #include <stdexcept>
 #include <utility>
 #include <openssl/x509v3.h>
+#include <openssl/err.h>
 #include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
 #include "sslpkix/error.h"
 
 namespace sslpkix {
+
+namespace detail {
+    time_t asn1_time_to_time_t(const ASN1_TIME* time);
+} // namespace detail
 
 class Certificate {
 public:
@@ -53,6 +58,13 @@ public:
 
     // Copy constructor
     Certificate(const Certificate& other) {
+        if (!other.is_valid()) {
+            throw std::invalid_argument("Certificate handle cannot be null");
+        }
+        if (!other.has_required_fields()) {
+            throw std::runtime_error("Cannot duplicate certificate. Reason: " + get_error_string());
+        }
+
         if (other._handle) {
             auto* duplicated = X509_dup(other._handle.get());
             if (!duplicated) {
@@ -98,6 +110,87 @@ public:
     // Explicit bool conversion
     explicit operator bool() const noexcept {
         return is_valid();
+    }
+
+    bool has_required_fields() const noexcept {
+        if (!_handle) {
+            return false;
+        }
+
+        // Check if the certificate has all the required fields
+        // If any of the fields are missing, the certificate cannot be duplicated
+        // The version field of certificates, certificate requests and CRLs has a DEFAULT value of v1(0) meaning the field should be omitted for version 1.
+        const ASN1_INTEGER* serial_number = X509_get0_serialNumber(_handle.get());
+        long serial = ASN1_INTEGER_get(serial_number);
+        if (serial == -1) {
+            ERR_raise(ERR_LIB_USER, 1);
+            ERR_raise_data(ERR_LIB_USER, 2, "Certificate is missing serialNumber");
+            return false;
+        }
+
+        const ASN1_TIME* not_before = X509_get0_notBefore(_handle.get());
+        time_t not_before_time = detail::asn1_time_to_time_t(not_before);
+        if (not_before_time == -1) {
+            ERR_raise(ERR_LIB_USER, 1);
+            ERR_raise_data(ERR_LIB_USER, 2, "Certificate is missing notBefore");
+            return false;
+        }
+
+        const ASN1_TIME* not_after = X509_get0_notAfter(_handle.get());
+        time_t not_after_time = detail::asn1_time_to_time_t(not_after);
+        if (not_after_time == -1) {
+            ERR_raise(ERR_LIB_USER, 1);
+            ERR_raise_data(ERR_LIB_USER, 2, "Certificate is missing notAfter");
+            return false;
+        }
+
+        const X509_NAME* subject = X509_get_subject_name(_handle.get());
+        int subject_common_name = X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
+        if (subject_common_name == -1) {
+            ERR_raise(ERR_LIB_USER, 1);
+            ERR_raise_data(ERR_LIB_USER, 2, "Certificate is missing subject");
+            return false;
+        }
+
+        const X509_NAME* issuer = X509_get_issuer_name(_handle.get());
+        int issuer_common_name = X509_NAME_get_index_by_NID(issuer, NID_commonName, -1);
+        if (issuer_common_name == -1) {
+            ERR_raise(ERR_LIB_USER, 1);
+            ERR_raise_data(ERR_LIB_USER, 2, "Certificate is missing issuer");
+            return false;
+        }
+
+        // NOTE: X509_get0_pubkey does not increment the reference count of the returned EVP_PKEY.
+        EVP_PKEY* pubkey = X509_get0_pubkey(_handle.get());
+        if (!pubkey) {
+            ERR_raise(ERR_LIB_USER, 1);
+            ERR_raise_data(ERR_LIB_USER, 2, "Certificate is missing public key");
+            return false;
+        }
+
+        // Check if the certificate has a valid signature
+        if (!is_signed()) {
+            ERR_raise(ERR_LIB_USER, 1);
+            ERR_raise_data(ERR_LIB_USER, 2, "Certificate is missing signature");
+            return false;
+        }
+
+        return true;
+    }
+
+    bool is_signed() const noexcept {
+        // Check if the signature algorithm is set
+        const X509_ALGOR* alg = X509_get0_tbs_sigalg(_handle.get());
+        if (!alg || OBJ_obj2nid(alg->algorithm) == NID_undef)
+            return false;
+
+        // Check if the actual signature value exists
+        const ASN1_BIT_STRING* sig = nullptr;
+        X509_get0_signature(&sig, nullptr, _handle.get());
+        if (!sig || sig->length == 0)
+            return false;
+
+        return true;
     }
 
     void set_version(Version version) {
