@@ -42,9 +42,11 @@ public:
         reset(new_handle);
     }
 
-    // Constructor for external handle (does not create new name)
-    // Does not increment reference count
-    // Does not take ownership
+    /**
+     * @brief Constructor for external handle (does not create new name)
+     * @note 1. Does not increment reference count
+     * @note 2. Does not take ownership
+     */
     explicit CertificateName(X509_NAME* external_handle) : handle_(external_handle, Deleter{false}) {}
 
     // Copy constructor - deep copy
@@ -99,7 +101,10 @@ public:
         return is_valid();
     }
 
-    // Add an entry to the certificate name
+    /**
+     * @brief Add an entry to the certificate name
+     * @note If it fails to add the entry, throw an exception of type std::runtime_error
+     */
     void add_entry_by_nid(int nid, const std::string& value) {
         if (value.empty()) {
             throw std::invalid_argument("Empty string is not allowed for certificate name entry (nid=" + std::to_string(nid) + ")");
@@ -118,7 +123,10 @@ public:
         }
     }
 
-    // Add an entry to the certificate name
+    /**
+     * @brief Add an entry to the certificate name
+     * @note If it fails to add the entry, throw an exception of type std::runtime_error
+     */
     void add_entry_by_txt(const std::string& field, const std::string& value) {
         const int result = X509_NAME_add_entry_by_txt(
             handle_.get(),
@@ -142,12 +150,18 @@ public:
         add_entry_by_txt(field, value);
     }
 
-    // Get the number of entries in the certificate name
+    /**
+     * @brief Get the number of entries in the certificate name
+     * @note If handle is null, return 0
+     */
     int entry_count() const noexcept {
         return handle_ ? X509_NAME_entry_count(handle_.get()) : 0;
     }
 
-    // Find an entry by NID
+    /**
+     * @brief Find an entry by NID
+     * @note If start_pos is -1, start from the beginning
+     */
     int find_entry_by_nid(int nid, int start_pos = -1) const noexcept {
         return handle_ ? X509_NAME_get_index_by_NID(handle_.get(), nid, start_pos) : -1;
     }
@@ -157,7 +171,10 @@ public:
         return find_entry_by_nid(nid);
     }
 
-    // Get an entry by index
+    /**
+     * @brief Get an entry by index
+     * @note If index is out of bounds, return nullptr
+     */
     X509_NAME_ENTRY* get_entry(int index) const noexcept {
         return handle_ ? X509_NAME_get_entry(handle_.get(), index) : nullptr;
     }
@@ -167,7 +184,10 @@ public:
         return get_entry(index);
     }
 
-    // Get entry value as string
+    /**
+     * @brief Get entry value as string
+     * @note If entry is not found, return empty string
+     */
     std::string get_entry_value(int nid) const {
         if (!handle_) {
             return {};
@@ -184,8 +204,10 @@ public:
         return std::string(buffer.get());
     }
 
-    // Get entry value into provided buffer
-    // If buffer is null, return the size of the entry value
+    /**
+     * @brief Get entry value into provided buffer
+     * @note If buffer is null, return the size of the entry value
+     */
     int get_entry_value(int nid, char* buffer, int buffer_size) const noexcept {
         return handle_ ? X509_NAME_get_text_by_NID(handle_.get(), nid, buffer, buffer_size) : -1;
     }
@@ -195,7 +217,10 @@ public:
         return get_entry_value(nid);
     }
 
-    // Get entry value into provided buffer
+    /**
+     * @brief Get entry value into provided buffer
+     * @note If buffer is null, return the size of the entry value
+     */
     int entry_value(int nid, char* buffer, int size) const noexcept {
         return get_entry_value(nid, buffer, size);
     }
@@ -217,7 +242,10 @@ public:
         return to_string();
     }
 
-    // Print the certificate name to a BIO
+    /**
+     * @brief Print the certificate name to a BIO
+     * @note If bio is null, return false
+     */
     bool print_to_bio(BIO* bio, int indent = 0) const noexcept {
         if (!handle_ || !bio) {
             return false;
@@ -278,7 +306,9 @@ public:
     }
 
 protected:
-    // Reset with new handle (takes ownership)
+    /**
+     * @brief Reset with new handle (takes ownership)
+     */
     void reset(X509_NAME* handle = nullptr) {
         handle_.reset(handle);
     }
