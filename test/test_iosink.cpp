@@ -3,6 +3,7 @@
 #include <fstream>
 #include <filesystem>
 #include <cstring>
+#include <sstream>
 #include "sslpkix/iosink.h"
 
 using namespace sslpkix;
@@ -389,13 +390,48 @@ TEST_CASE("Error handling and edge cases", "[ErrorHandling]") {
     }
 }
 
-// Note: Stream operators are declared but not implemented in the header,
-// so we can't test them without the implementation.
-TEST_CASE("Stream operators (declaration test)", "[StreamOperators]") {
-    SECTION("Operator declarations exist") {
-        // This just verifies the declarations compile
-        // Actual testing would require the implementations
-        INFO("Stream operators are declared but implementation not provided in header");
-        REQUIRE(true); // Placeholder test
+TEST_CASE("Stream operators", "[StreamOperators]") {
+    SECTION("operator<<(IoSink&, const std::string&)") {
+        MemorySink sink;
+        sink.open_rw();
+
+        const std::string test_string = "Hello, stream!";
+        REQUIRE_NOTHROW(sink << test_string);
+
+        std::string content = sink.read_all();
+        REQUIRE(content == test_string);
+    }
+
+    SECTION("operator>>(IoSink&, std::string&)") {
+        const std::string test_string = "Stream into string";
+        MemorySink sink;
+        sink.open_ro(test_string.c_str());
+
+        std::string result;
+        REQUIRE_NOTHROW(sink >> result);
+        REQUIRE(result == test_string);
+    }
+
+    SECTION("operator<<(std::ostream&, IoSink&)") {
+        const std::string test_string = "IoSink to ostream";
+        MemorySink sink;
+        sink.open_ro(test_string.c_str());
+
+        std::stringstream ss;
+        REQUIRE_NOTHROW(ss << sink);
+        REQUIRE(ss.str() == test_string);
+    }
+
+    SECTION("operator>>(std::istream&, IoSink&)") {
+        const std::string test_string = "istream to IoSink";
+        std::stringstream ss(test_string);
+
+        MemorySink sink;
+        sink.open_rw();
+
+        REQUIRE_NOTHROW(ss >> sink);
+
+        std::string content = sink.read_all();
+        REQUIRE(content == test_string);
     }
 }
