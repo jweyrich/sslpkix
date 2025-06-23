@@ -300,12 +300,22 @@ public:
         return Key{pubkey}; // Increments reference count
     }
 
-    void sign(const PrivateKey& key, Digest::type_e digest = Digest::TYPE_SHA1) {
+    void sign(const Key& key, Digest::type_e digest = Digest::TYPE_SHA1) {
         if (!_handle) {
             throw std::logic_error("Certificate handle is null");
         }
         if (!key.is_valid()) {
             throw std::invalid_argument("Invalid key");
+        }
+        if (!key.can_sign()) {
+            throw std::invalid_argument("Key cannot sign");
+        }
+
+        const auto has_pub = key.has_public_key();
+        const auto has_priv = key.has_private_key();
+        const bool is_missing_pub_or_priv = !(has_pub || has_priv);
+        if (is_missing_pub_or_priv) {
+            throw std::runtime_error("Key is missing public or private part");
         }
 
         if (!X509_sign(_handle.get(), key.handle(), Digest::handle(digest))) {

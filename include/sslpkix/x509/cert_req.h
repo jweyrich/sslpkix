@@ -198,6 +198,16 @@ public:
         if (!key.is_valid()) {
             throw std::invalid_argument("Invalid key");
         }
+        if (!key.can_sign()) {
+            throw std::invalid_argument("Key cannot sign");
+        }
+
+        const auto has_pub = key.has_public_key();
+        const auto has_priv = key.has_private_key();
+        const bool is_missing_pub_or_priv = !(has_pub || has_priv);
+        if (is_missing_pub_or_priv) {
+            throw std::runtime_error("Key is missing public or private part");
+        }
 
         if (!X509_REQ_sign(_handle.get(), key.handle(), Digest::handle(digest))) {
             throw std::runtime_error("Failed to sign certificate request. Reason: " + get_error_string());
@@ -261,7 +271,6 @@ public:
         if (!key.is_valid()) {
             throw std::invalid_argument("Invalid key");
         }
-
         return X509_REQ_verify(_handle.get(), key.handle()) == 1;
     }
 
