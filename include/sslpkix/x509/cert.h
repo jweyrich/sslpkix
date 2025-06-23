@@ -90,7 +90,7 @@ public:
     Certificate& operator=(Certificate&& other) noexcept = default;
 
     // Destructor
-    ~Certificate() = default;
+    virtual ~Certificate() = default;
 
     // Get raw handle (const version preferred)
     const handle_type* handle() const noexcept {
