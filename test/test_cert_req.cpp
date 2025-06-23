@@ -24,11 +24,11 @@ struct CertificateRequestTestFixture {
     CertificateRequestTestFixture(CertificateRequestTestFixture&&) = delete;
     CertificateRequestTestFixture& operator=(CertificateRequestTestFixture&&) = delete;
 
-    EVP_PKEY* createTestKeyPair(int bits = 512) {
+    EVP_PKEY* create_keypair(int bits = 512) {
         return factory::generate_key_rsa(bits);
     }
 
-    CertificateName createTestCertificateName() {
+    CertificateName create_certificate_name() {
         CertificateName name;
         REQUIRE_NOTHROW(name.add_entry("C", "US"));
         REQUIRE_NOTHROW(name.add_entry("ST", "California"));
@@ -69,15 +69,16 @@ TEST_CASE("CertificateRequest Creation", "[certificate_request][creation]") {
 
 TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Copy Operations", "[certificate_request][copy]") {
     CertificateRequest original;
-    CertificateName testSubject = createTestCertificateName();
+    CertificateName subject = create_certificate_name();
 
-    EVP_PKEY* testKeyPair = createTestKeyPair();
-    Key testPublicKey{testKeyPair};
+    EVP_PKEY* keypair = create_keypair();
+    std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
+    std::unique_ptr<Key> public_key = private_key->extract_public_key();
 
     REQUIRE(original.set_version(CertificateRequest::Version::v1));
-    REQUIRE_NOTHROW(original.set_subject(testSubject));
-    REQUIRE_NOTHROW(original.set_pubkey(testPublicKey));
-    REQUIRE_NOTHROW(original.sign(testPublicKey, Digest::TYPE_SHA256));
+    REQUIRE_NOTHROW(original.set_subject(subject));
+    REQUIRE_NOTHROW(original.set_pubkey(*public_key));
+    REQUIRE_NOTHROW(original.sign(*private_key, Digest::TYPE_SHA256));
 
     SECTION("Copy constructor") {
         CertificateRequest copy(original);
@@ -138,13 +139,14 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Public Key O
     CertificateRequest req;
 
     // Test data members
-    EVP_PKEY* testKeyPair = createTestKeyPair();
-    Key testPublicKey{testKeyPair};
+    EVP_PKEY* keypair = create_keypair();
+    std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
+    std::unique_ptr<Key> public_key = private_key->extract_public_key();
 
     SECTION("Set and get public key") {
         REQUIRE(req.is_valid());
-        REQUIRE(testPublicKey.is_valid());
-        REQUIRE_NOTHROW(req.set_pubkey(testPublicKey));
+        REQUIRE(public_key->is_valid());
+        REQUIRE_NOTHROW(req.set_pubkey(*public_key));
         REQUIRE_NOTHROW(req.pubkey());
 
         const Key dup_pubkey = req.pubkey();
@@ -158,10 +160,10 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Public Key O
 
 TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Subject Operations", "[certificate_request][subject]") {
     CertificateRequest req;
-    CertificateName testSubject = createTestCertificateName();
+    CertificateName subject = create_certificate_name();
 
     SECTION("Set and get subject") {
-        REQUIRE_NOTHROW(req.set_subject(testSubject));
+        REQUIRE_NOTHROW(req.set_subject(subject));
 
         const CertificateName& subject = req.subject();
         REQUIRE(subject.handle() != nullptr);
@@ -176,37 +178,37 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Subject Oper
 
 TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Signing Operations", "[certificate_request][signing]") {
     CertificateRequest req;
-    CertificateName testSubject = createTestCertificateName();
+    CertificateName subject = create_certificate_name();
 
-    EVP_PKEY* testKeyPair = createTestKeyPair();
-    Key testPublicKey{testKeyPair};
-    PrivateKey testPrivateKey{testKeyPair};
+    EVP_PKEY* keypair = create_keypair();
+    std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
+    std::unique_ptr<Key> public_key = private_key->extract_public_key();
 
     REQUIRE(req.set_version(CertificateRequest::Version::v1));
-    REQUIRE_NOTHROW(req.set_pubkey(testPublicKey));
-    REQUIRE_NOTHROW(req.set_subject(testSubject));
+    REQUIRE_NOTHROW(req.set_pubkey(*public_key));
+    REQUIRE_NOTHROW(req.set_subject(subject));
 
     SECTION("Sign certificate request with default digest") {
-        REQUIRE_NOTHROW(req.sign(testPrivateKey));
+        REQUIRE_NOTHROW(req.sign(*private_key));
     }
 
     SECTION("Sign certificate request with specific digest") {
-        REQUIRE_NOTHROW(req.sign(testPrivateKey, Digest::TYPE_SHA256));
+        REQUIRE_NOTHROW(req.sign(*private_key, Digest::TYPE_SHA256));
     }
 
     SECTION("Cannot sign invalid request") {
         CertificateRequest invalid_req;
-        REQUIRE_THROWS_AS(invalid_req.sign(testPrivateKey), std::runtime_error);
+        REQUIRE_THROWS_AS(invalid_req.sign(*private_key), std::runtime_error);
     }
 
     SECTION("Verify signature after signing") {
-        REQUIRE_NOTHROW(req.sign(testPrivateKey));
-        REQUIRE(req.verify_signature(testPublicKey));
+        REQUIRE_NOTHROW(req.sign(*private_key));
+        REQUIRE(req.verify_signature(*public_key));
     }
 
     SECTION("Check private key correspondence") {
-        REQUIRE_NOTHROW(req.sign(testPrivateKey));
-        REQUIRE(req.matches_private_key(testPrivateKey));
+        REQUIRE_NOTHROW(req.sign(*private_key));
+        REQUIRE(req.matches_private_key(*public_key));
     }
 }
 
@@ -239,44 +241,44 @@ TEST_CASE("CertificateRequest Extensions", "[certificate_request][extensions]") 
 
 TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Verification Operations", "[certificate_request][verification]") {
     CertificateRequest req;
-    CertificateName testSubject = createTestCertificateName();
+    CertificateName subject = create_certificate_name();
 
-    EVP_PKEY* testKeyPair = createTestKeyPair();
-    Key testPublicKey{testKeyPair};
-    PrivateKey testPrivateKey{testKeyPair};
+    EVP_PKEY* keypair = create_keypair();
+    std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
+    std::unique_ptr<Key> public_key = private_key->extract_public_key();
 
     REQUIRE_NOTHROW(req.set_version(CertificateRequest::Version::v1));
-    REQUIRE_NOTHROW(req.set_pubkey(testPublicKey));
-    REQUIRE_NOTHROW(req.set_subject(testSubject));
-    REQUIRE_NOTHROW(req.sign(testPrivateKey));
+    REQUIRE_NOTHROW(req.set_pubkey(*public_key));
+    REQUIRE_NOTHROW(req.set_subject(subject));
+    REQUIRE_NOTHROW(req.sign(*private_key));
 
     SECTION("Verify signature with correct key") {
-        REQUIRE(req.verify_signature(testPublicKey));
+        REQUIRE(req.verify_signature(*public_key));
     }
 
     SECTION("Check private key with correct key") {
-        REQUIRE(req.matches_private_key(testPrivateKey));
+        REQUIRE(req.matches_private_key(*public_key));
     }
 
     SECTION("Verification fails on default constructed request") {
         CertificateRequest req;
-        REQUIRE_FALSE(req.verify_signature(testPublicKey));
-        REQUIRE_FALSE(req.matches_private_key(testPrivateKey));
+        REQUIRE_FALSE(req.verify_signature(*public_key));
+        REQUIRE_FALSE(req.matches_private_key(*private_key));
     }
 }
 
 TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest IO Operations", "[certificate_request][io]") {
     CertificateRequest req;
-    CertificateName testSubject = createTestCertificateName();
+    CertificateName subject = create_certificate_name();
 
-    EVP_PKEY* testKeyPair = createTestKeyPair();
-    Key testPublicKey{testKeyPair};
-    PrivateKey testPrivateKey{testKeyPair};
+    EVP_PKEY* keypair = create_keypair();
+    std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
+    std::unique_ptr<Key> public_key = private_key->extract_public_key();
 
     REQUIRE_NOTHROW(req.set_version(CertificateRequest::Version::v1));
-    REQUIRE_NOTHROW(req.set_pubkey(testPublicKey));
-    REQUIRE_NOTHROW(req.set_subject(testSubject));
-    REQUIRE_NOTHROW(req.sign(testPrivateKey));
+    REQUIRE_NOTHROW(req.set_pubkey(*public_key));
+    REQUIRE_NOTHROW(req.set_subject(subject));
+    REQUIRE_NOTHROW(req.sign(*private_key));
 
     SECTION("Save certificate request") {
         MemorySink sink;
@@ -325,28 +327,28 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest IO Operation
 TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Complete Workflow", "[certificate_request][workflow]") {
     SECTION("Complete certificate request creation workflow") {
         CertificateRequest req;
-        CertificateName testSubject = createTestCertificateName();
+        CertificateName subject = create_certificate_name();
 
-        EVP_PKEY* testKeyPair = createTestKeyPair();
-        Key testPublicKey{testKeyPair};
-        PrivateKey testPrivateKey{testKeyPair};
+        EVP_PKEY* keypair = create_keypair();
+        std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
+        std::unique_ptr<Key> public_key = private_key->extract_public_key();
 
         // Step 1: Set version
         REQUIRE_NOTHROW(req.set_version(CertificateRequest::Version::v1));
         REQUIRE(req.version() == CertificateRequest::Version::v1);
 
         // Step 2: Set subject
-        REQUIRE_NOTHROW(req.set_subject(testSubject));
+        REQUIRE_NOTHROW(req.set_subject(subject));
 
         // Step 3: Set public key
-        REQUIRE_NOTHROW(req.set_pubkey(testPublicKey));
+        REQUIRE_NOTHROW(req.set_pubkey(*public_key));
 
         // Step 4: Sign the request
-        REQUIRE_NOTHROW(req.sign(testPrivateKey, Digest::TYPE_SHA256));
+        REQUIRE_NOTHROW(req.sign(*private_key, Digest::TYPE_SHA256));
 
         // Step 5: Verify the request
-        REQUIRE(req.verify_signature(testPublicKey));
-        REQUIRE(req.matches_private_key(testPrivateKey));
+        REQUIRE(req.verify_signature(*public_key));
+        REQUIRE(req.matches_private_key(*private_key));
 
         // Step 6: Save the request
         MemorySink sink;
@@ -358,19 +360,19 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Complete Wor
 TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Error Handling", "[certificate_request][error_handling]") {
     SECTION("Operations on uninitialized request should fail gracefully") {
         CertificateRequest req{nullptr};
-        CertificateName testSubject = createTestCertificateName();
+        CertificateName subject = create_certificate_name();
 
-        EVP_PKEY* testKeyPair = createTestKeyPair();
-        Key testPublicKey{testKeyPair};
-        PrivateKey testPrivateKey{testKeyPair};
+        EVP_PKEY* keypair = create_keypair();
+        std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
+        std::unique_ptr<Key> public_key = private_key->extract_public_key();
 
         REQUIRE_FALSE(req);
         REQUIRE(req.handle() == nullptr);
         REQUIRE_THROWS_AS(req.set_version(CertificateRequest::Version::v1), std::logic_error);
-        REQUIRE_THROWS_AS(req.set_pubkey(testPublicKey), std::logic_error);
-        REQUIRE_THROWS_AS(req.set_subject(testSubject), std::logic_error);
-        REQUIRE_THROWS_AS(req.sign(testPrivateKey), std::logic_error);
-        REQUIRE_THROWS_AS(req.verify_signature(testPublicKey), std::logic_error);
-        REQUIRE_THROWS_AS(req.matches_private_key(testPrivateKey), std::logic_error);
+        REQUIRE_THROWS_AS(req.set_pubkey(*public_key), std::logic_error);
+        REQUIRE_THROWS_AS(req.set_subject(subject), std::logic_error);
+        REQUIRE_THROWS_AS(req.sign(*private_key), std::logic_error);
+        REQUIRE_THROWS_AS(req.verify_signature(*public_key), std::logic_error);
+        REQUIRE_THROWS_AS(req.matches_private_key(*private_key), std::logic_error);
     }
 }
