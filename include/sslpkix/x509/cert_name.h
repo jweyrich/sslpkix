@@ -119,7 +119,7 @@ public:
     }
 
     // Add an entry to the certificate name
-    bool add_entry_by_txt(const std::string& field, const std::string& value) {
+    void add_entry_by_txt(const std::string& field, const std::string& value) {
         const int result = X509_NAME_add_entry_by_txt(
             handle_.get(),
             field.c_str(),
@@ -128,7 +128,9 @@ public:
             -1, -1, 0
         );
 
-        return result == 1;
+        if (result != 1) {
+           throw std::runtime_error("Failed to add entry (field=" + field + ", value=" + value + ") to certificate name. Reason: " + get_error_string());
+        }
     }
 
     // Legacy method names for compatibility
