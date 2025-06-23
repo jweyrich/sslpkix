@@ -186,7 +186,9 @@ public:
     }
 
     const Key pubkey() const {
-        auto pubkey = X509_get_pubkey(_handle.get());
+        // Returns a pointer to the public key in the certificate request.
+        // We are responsible for incrementing the reference count of the key. It's currently done in Key::Key(EVP_PKEY* handle)
+        auto pubkey = X509_get0_pubkey(_handle.get());
         if (!pubkey) {
             throw std::runtime_error("Failed to get public key. Reason: " + get_error_string());
         }
@@ -195,7 +197,9 @@ public:
     }
 
     Key pubkey() {
-        auto pubkey = X509_get_pubkey(_handle.get());
+        // Returns a pointer to the public key in the certificate request.
+        // We are responsible for incrementing the reference count of the key. It's currently done in Key::Key(EVP_PKEY* handle)
+        auto pubkey = X509_get0_pubkey(_handle.get());
         if (!pubkey) {
             throw std::runtime_error("Failed to get public key. Reason: " + get_error_string());
         }
