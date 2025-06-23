@@ -12,6 +12,10 @@ using namespace sslpkix;
 struct CertificateNameTestFixture {
 	CertificateNameTestFixture() = default;
 	~CertificateNameTestFixture() = default;
+	CertificateNameTestFixture(const CertificateNameTestFixture&) = delete;
+	CertificateNameTestFixture& operator=(const CertificateNameTestFixture&) = delete;
+	CertificateNameTestFixture(CertificateNameTestFixture&&) = delete;
+	CertificateNameTestFixture& operator=(CertificateNameTestFixture&&) = delete;
 
 	// Helper to create a populated certificate name
 	CertificateName createTestName() {

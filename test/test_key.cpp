@@ -18,6 +18,11 @@ struct KeyTestFixture {
     KeyTestFixture() = default;
     ~KeyTestFixture() = default;
 
+    KeyTestFixture(const KeyTestFixture&) = delete;
+    KeyTestFixture& operator=(const KeyTestFixture&) = delete;
+    KeyTestFixture(KeyTestFixture&&) = delete;
+    KeyTestFixture& operator=(KeyTestFixture&&) = delete;
+
     // Helper to create RSA key for testing
     RSA* create_test_rsa_key() {
         #ifndef OPENSSL_NO_RSA

@@ -18,7 +18,11 @@ using namespace sslpkix;
 
 struct CertificateRequestTestFixture {
     CertificateRequestTestFixture() = default;
-    ~CertificateRequestTestFixture()  = default;
+    ~CertificateRequestTestFixture() = default;
+    CertificateRequestTestFixture(const CertificateRequestTestFixture&) = delete;
+    CertificateRequestTestFixture& operator=(const CertificateRequestTestFixture&) = delete;
+    CertificateRequestTestFixture(CertificateRequestTestFixture&&) = delete;
+    CertificateRequestTestFixture& operator=(CertificateRequestTestFixture&&) = delete;
 
     EVP_PKEY* createTestKeyPair(int bits = 512) {
         return factory::generate_key_rsa(bits);

@@ -16,6 +16,11 @@ public:
         cleanup();
     }
 
+    TempFileFixture(const TempFileFixture&) = delete;
+    TempFileFixture& operator=(const TempFileFixture&) = delete;
+    TempFileFixture(TempFileFixture&&) = delete;
+    TempFileFixture& operator=(TempFileFixture&&) = delete;
+
     void create_test_file(const std::string& content) {
         std::ofstream file(temp_filename);
         file << content;
