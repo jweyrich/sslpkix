@@ -471,6 +471,12 @@ public:
         return EVP_PKEY_cmp(this_pkey, provided_pkey) == 1;
     }
 
+    void print(FILE* stream = stdout) const noexcept{
+        BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
+        X509_print(bio_out, _handle.get());
+        BIO_free(bio_out);
+    }
+
     virtual void load(IoSink& sink) {
         if (!sink.is_open()) {
             throw std::invalid_argument("IoSink is not open");

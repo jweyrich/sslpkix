@@ -291,6 +291,12 @@ public:
         return EVP_PKEY_cmp(this_pkey, provided_pkey) == 1;
     }
 
+    void print(FILE* stream = stdout) const noexcept {
+        BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
+        X509_REQ_print(bio_out, _handle.get());
+        BIO_free(bio_out);
+    }
+
     // Load from IoSink
     virtual void load(IoSink& sink) {
         auto* new_handle = PEM_read_bio_X509_REQ(sink.handle(), nullptr, nullptr, nullptr);
