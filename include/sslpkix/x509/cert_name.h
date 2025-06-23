@@ -50,10 +50,11 @@ public:
     // Copy constructor - deep copy
     CertificateName(const CertificateName& other) {
         if (other.handle_) {
-            reset(X509_NAME_dup(other.handle_.get()));
-            if (!handle_) {
+            auto* duplicated = X509_NAME_dup(other.handle_.get());
+            if (!duplicated) {
                 throw std::runtime_error("Failed to duplicate X509_NAME. Reason: " + get_error_string());
             }
+            reset(duplicated);
         } else {
             // If other is empty, create a new empty certificate name
             auto* new_handle = X509_NAME_new();
@@ -70,19 +71,8 @@ public:
     // Copy assignment
     CertificateName& operator=(const CertificateName& other) {
         if (this != &other) {
-            if (other.handle_) {
-                reset(X509_NAME_dup(other.handle_.get()));
-                if (!handle_) {
-                    throw std::runtime_error("Failed to duplicate X509_NAME. Reason: " + get_error_string());
-                }
-            } else {
-                // If other is empty, create a new empty certificate name
-                auto* new_handle = X509_NAME_new();
-                if (!new_handle) {
-                    throw std::bad_alloc();
-                }
-                reset(new_handle);
-            }
+            CertificateName temp(other);
+            *this = std::move(temp);
         }
         return *this;
     }
