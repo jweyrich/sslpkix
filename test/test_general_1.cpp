@@ -28,7 +28,7 @@ protected:
 		auto subject = create_subject();
 		auto issuer = create_issuer();
 		auto private_key = std::make_unique<sslpkix::PrivateKey>(keypair);
-		auto public_key = private_key->extract_public_key();
+		auto public_key = private_key->pubkey();
 		auto cert = create_certificate(*subject, *issuer, *public_key);
 		sign_certificate(*cert, *private_key);
 

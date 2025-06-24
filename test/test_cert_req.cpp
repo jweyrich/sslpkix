@@ -73,7 +73,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Copy Operati
 
     EVP_PKEY* keypair = create_keypair();
     std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
-    std::unique_ptr<Key> public_key = private_key->extract_public_key();
+    std::unique_ptr<Key> public_key = private_key->pubkey();
 
     REQUIRE(original.set_version(CertificateRequest::Version::v1));
     REQUIRE_NOTHROW(original.set_subject(subject));
@@ -151,7 +151,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Public Key O
     // Test data members
     EVP_PKEY* keypair = create_keypair();
     std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
-    std::unique_ptr<Key> public_key = private_key->extract_public_key();
+    std::unique_ptr<Key> public_key = private_key->pubkey();
 
     SECTION("Set and get public key") {
         REQUIRE(req.is_valid());
@@ -192,7 +192,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Signing Oper
 
     EVP_PKEY* keypair = create_keypair();
     std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
-    std::unique_ptr<Key> public_key = private_key->extract_public_key();
+    std::unique_ptr<Key> public_key = private_key->pubkey();
 
     REQUIRE(req.set_version(CertificateRequest::Version::v1));
     REQUIRE_NOTHROW(req.set_pubkey(*public_key));
@@ -255,7 +255,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Verification
 
     EVP_PKEY* keypair = create_keypair();
     std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
-    std::unique_ptr<Key> public_key = private_key->extract_public_key();
+    std::unique_ptr<Key> public_key = private_key->pubkey();
 
     REQUIRE_NOTHROW(req.set_version(CertificateRequest::Version::v1));
     REQUIRE_NOTHROW(req.set_pubkey(*public_key));
@@ -283,7 +283,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest IO Operation
 
     EVP_PKEY* keypair = create_keypair();
     std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
-    std::unique_ptr<Key> public_key = private_key->extract_public_key();
+    std::unique_ptr<Key> public_key = private_key->pubkey();
 
     REQUIRE_NOTHROW(req.set_version(CertificateRequest::Version::v1));
     REQUIRE_NOTHROW(req.set_pubkey(*public_key));
@@ -341,7 +341,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Complete Wor
 
         EVP_PKEY* keypair = create_keypair();
         std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
-        std::unique_ptr<Key> public_key = private_key->extract_public_key();
+        std::unique_ptr<Key> public_key = private_key->pubkey();
 
         // Step 1: Set version
         REQUIRE_NOTHROW(req.set_version(CertificateRequest::Version::v1));
@@ -374,7 +374,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Error Handli
 
         EVP_PKEY* keypair = create_keypair();
         std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
-        std::unique_ptr<Key> public_key = private_key->extract_public_key();
+        std::unique_ptr<Key> public_key = private_key->pubkey();
 
         REQUIRE_FALSE(req);
         REQUIRE(req.handle() == nullptr);

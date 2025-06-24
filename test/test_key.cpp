@@ -435,3 +435,24 @@ TEST_CASE_METHOD(KeyTestFixture, "Cipher traits compilation", "[cipher_traits][c
     // This should compile fine as the tests above validate the traits
     REQUIRE(true);
 }
+
+TEST_CASE_METHOD(KeyTestFixture, "Key pubkey", "[Key][pubkey]") {
+    auto keypair = sslpkix::factory::generate_key_rsa(512);
+    auto private_key = std::make_unique<sslpkix::PrivateKey>(keypair);
+    // Create a public key from the private key
+    auto public_key = std::make_unique<sslpkix::Key>(private_key->handle());
+    // Extract the public key from the private key
+    auto extracted_public_key = private_key->pubkey();
+
+    // Print the public keys to memory sinks
+    MemorySink sink1, sink2;
+    sink1.open_rw();
+    sink2.open_rw();
+
+    // Print the public keys to the memory sinks
+    public_key->print_ex(sink1.handle());
+    extracted_public_key->print_ex(sink2.handle());
+
+    // Compare the printed public keys
+    REQUIRE(sink1.read_all() == sink2.read_all());
+}

@@ -46,7 +46,7 @@ private:
     void createTestKeyPair() {
         EVP_PKEY* private_pkey = factory::generate_key_rsa(512);
         test_private_key = std::make_unique<PrivateKey>(private_pkey);
-        test_public_key = test_private_key->extract_public_key();
+        test_public_key = test_private_key->pubkey();
     }
 
     void createTestCertificateName() {
