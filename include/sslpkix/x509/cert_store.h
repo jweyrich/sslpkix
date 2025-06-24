@@ -3,17 +3,70 @@
 #include <iostream>
 #include <memory>
 #include <functional>
+#include <stdexcept>
 #include <openssl/x509v3.h>
 #include <openssl/x509_vfy.h>
+#include "sslpkix/error.h"
 #include "sslpkix/x509/cert.h"
 
 namespace sslpkix {
 
+class CertificateStoreException : public std::runtime_error {
+public:
+    explicit CertificateStoreException(const std::string& msg)
+        : std::runtime_error(msg)
+        , _internal_error_string(get_error_string()) {}
+
+    std::string internal_error_string() const {
+        return _internal_error_string;
+    }
+
+private:
+    std::string _internal_error_string;
+};
+
+class CertificateStoreContextException : public std::runtime_error {
+public:
+    explicit CertificateStoreContextException(const std::string& msg)
+        : std::runtime_error(msg)
+        , _internal_error_string(get_error_string()) {}
+
+    std::string internal_error_string() const {
+        return _internal_error_string;
+    }
+
+private:
+    std::string _internal_error_string;
+};
+
+class CertificateVerifierException : public std::runtime_error {
+public:
+    explicit CertificateVerifierException(const X509_STORE_CTX* ctx, const std::string& msg)
+        : std::runtime_error(msg)
+        , _internal_error_string(internal_error_string(ctx)) {}
+
+    // Override what()
+    const char* what() const noexcept override {
+        _msg = std::string(std::runtime_error::what()) + ". Reason: " + _internal_error_string;
+        return _msg.c_str();
+    }
+
+    std::string internal_error_string() const {
+        return _internal_error_string;
+    }
+
+    std::string internal_error_string(const X509_STORE_CTX* ctx) const {
+        int err = X509_STORE_CTX_get_error(ctx);
+        return X509_verify_cert_error_string(err);
+    }
+
+private:
+    std::string _internal_error_string;
+    mutable std::string _msg;
+};
+
 class CertificateStore {
 public:
-	// More info at http://www.umich.edu/~x509/ssleay/x509_store.html
-	using handle_type = X509_STORE;
-
     // Custom deleters for OpenSSL X509_STORE
     struct Deleter {
         void operator()(X509_STORE* store) const noexcept {
@@ -23,10 +76,24 @@ public:
         }
     };
 
-    using unique_handle = std::unique_ptr<handle_type, Deleter>;
+	// More info at http://www.umich.edu/~x509/ssleay/x509_store.html
+	using handle_type = X509_STORE;
+    using handle_ptr = std::unique_ptr<handle_type, Deleter>;
 
 public:
-    CertificateStore() = default;
+    CertificateStore() {
+        auto new_handle = handle_ptr(X509_STORE_new(), Deleter());
+        if (!new_handle) {
+            throw CertificateStoreException("Failed to create certificate store");
+        }
+
+        // The callback is only needed for more descriptive error messages, etc
+        #if 0
+        X509_STORE_set_verify_cb_func(new_handle.get(), verify_callback);
+        #endif
+
+        _handle = std::move(new_handle);
+    }
 
     // Move constructor and assignment
     CertificateStore(CertificateStore&&) = default;
@@ -46,22 +113,6 @@ public:
         return _handle.get() != nullptr;
     }
 
-    bool create() {
-        auto new_handle = unique_handle(X509_STORE_new());
-        if (!new_handle) {
-            std::cerr << "Failed to create certificate store\n";
-            return false;
-        }
-
-        // The callback is only needed for more descriptive error messages, etc
-        #if 0
-        X509_STORE_set_verify_cb_func(new_handle.get(), verify_callback);
-        #endif
-
-        _handle = std::move(new_handle);
-        return true;
-    }
-
     void set_flags(long flags) {
         if (_handle) {
             X509_STORE_set_flags(_handle.get(), flags);
@@ -70,15 +121,18 @@ public:
 
     /*
     // More info at http://www.openssl.org/docs/crypto/X509_VERIFY_PARAM_set_flags.html
-    bool set_param() {
-        if (!_handle) return false;
+    bool set_param(const X509_VERIFY_PARAM* param) {
+        if (!_handle) {
+            return false;
+        }
 
-        auto vpm = std::unique_ptr<X509_VERIFY_PARAM,
-                                   decltype(&X509_VERIFY_PARAM_free)>(
-            nullptr, X509_VERIFY_PARAM_free);
-
-        if (vpm) {
-            X509_STORE_set1_param(_handle.get(), vpm.get());
+        // auto param = std::unique_ptr<X509_VERIFY_PARAM, decltype(&X509_VERIFY_PARAM_free)>(nullptr, X509_VERIFY_PARAM_free);
+        // if (!param) {
+        //     throw CertificateStoreException("Failed to create X509_VERIFY_PARAM");
+        // }
+        int ret = X509_STORE_set1_param(_handle.get(), param);
+        if (ret != 1) {
+            throw CertificateStoreException("Failed to set X509_VERIFY_PARAM");
         }
         return true;
     }
@@ -93,19 +147,12 @@ public:
         return ret != 0;
     }
 
-    void reset() {
-        _handle.reset();
-    }
-
 private:
-    unique_handle _handle;
+    handle_ptr _handle;
 };
 
 class CertificateStoreContext {
 public:
-	// More info at http://www.umich.edu/~x509/ssleay/x509_store_ctx.html
-	using handle_type = X509_STORE_CTX;
-
     // Custom deleters for OpenSSL X509_STORE_CTX
     struct Deleter {
         void operator()(X509_STORE_CTX* ctx) const noexcept {
@@ -115,10 +162,19 @@ public:
         }
     };
 
-    using unique_handle = std::unique_ptr<handle_type, Deleter>;
+    // More info at http://www.umich.edu/~x509/ssleay/x509_store_ctx.html
+    using handle_type = X509_STORE_CTX;
+    using handle_ptr = std::unique_ptr<handle_type, Deleter>;
 
 public:
-    CertificateStoreContext() = default;
+    CertificateStoreContext() {
+        auto new_handle = handle_ptr(X509_STORE_CTX_new(), Deleter());
+        if (!new_handle) {
+            throw CertificateStoreContextException("Failed to create certificate store context");
+        }
+
+        _handle = std::move(new_handle);
+    }
 
     // Move constructor and assignment
     CertificateStoreContext(CertificateStoreContext&&) = default;
@@ -138,23 +194,8 @@ public:
         return _handle.get() != nullptr;
     }
 
-    bool create() {
-        auto new_handle = unique_handle(X509_STORE_CTX_new());
-        if (!new_handle) {
-            std::cerr << "Failed to create certificate store context\n";
-            return false;
-        }
-
-        _handle = std::move(new_handle);
-        return true;
-    }
-
-    void reset() {
-        _handle.reset();
-    }
-
 private:
-    unique_handle _handle;
+    handle_ptr _handle;
 };
 
 class CertificateVerifier {
@@ -168,25 +209,22 @@ public:
         int purpose = -1)
     {
         if (!store.is_valid() || !ctx.is_valid()) {
-            std::cerr << "Invalid store or context\n";
-            return false;
+            throw CertificateVerifierException(ctx.handle(), "Invalid store or context");
         }
 
         auto* pctx = ctx.handle();
         int ret = X509_STORE_CTX_init(pctx, store.handle(), nullptr, nullptr);
         if (!ret) {
-            std::cerr << "Failed to initialize certificate store context\n";
-            return false;
+            throw CertificateVerifierException(ctx.handle(), "Failed to initialize certificate store context");
         }
 
-        // RAII cleanup helper
-        auto cleanup_guard = std::unique_ptr<X509_STORE_CTX,
-                                           std::function<void(X509_STORE_CTX*)>>(
-            pctx, [](X509_STORE_CTX* ctx) {
-                if (ctx) {
-                    X509_STORE_CTX_cleanup(ctx);
-                }
-            });
+        // TODO(jweyrich): Would be good to integrate this with CertificateStoreContext's X509_STORE_CTX deleter,
+        // or at least have an off-the-shelf RAII wrapper for X509_STORE_CTX_cleanup.
+        auto cleanup_guard = std::unique_ptr<X509_STORE_CTX, std::function<void(X509_STORE_CTX*)>>(pctx, [](X509_STORE_CTX* ctx) {
+            if (ctx) {
+                X509_STORE_CTX_cleanup(ctx);
+            }
+        });
 
         if (purpose >= 0) {
             X509_STORE_CTX_set_purpose(pctx, purpose);
@@ -198,9 +236,8 @@ public:
         // Check the certificate
         ret = X509_verify_cert(pctx);
         if (ret != 1) {
-            std::cerr << "Verify failed: " << get_error_string() << '\n';
+            throw CertificateVerifierException(ctx.handle(), "Certificate verification failed");
         }
-
 
         return ret == 1;
     }
