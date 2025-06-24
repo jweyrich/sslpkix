@@ -291,10 +291,15 @@ public:
         return EVP_PKEY_cmp(this_pkey, provided_pkey) == 1;
     }
 
-    void print(FILE* stream = stdout) const noexcept {
+    bool print_ex(BIO* bio, int name_fmt_flags = XN_FLAG_COMPAT, int cert_skip_flags = X509_FLAG_COMPAT) const noexcept {
+        return X509_REQ_print_ex(bio, _handle.get(), name_fmt_flags, cert_skip_flags) == 1;
+    }
+
+    bool print(FILE* stream = stdout) const noexcept {
         BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
-        X509_REQ_print(bio_out, _handle.get());
+        const auto ret = print_ex(bio_out);
         BIO_free(bio_out);
+        return ret;
     }
 
     // Load from IoSink

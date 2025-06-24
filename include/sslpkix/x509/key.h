@@ -352,10 +352,15 @@ public:
         return nullptr;
     }
 
-    virtual void print(FILE* stream = stdout) const noexcept {
+    virtual int print_ex(BIO* bio) const noexcept {
+        return EVP_PKEY_print_public(bio, _handle.get(), 0, NULL);
+    }
+
+    virtual int print(FILE* stream = stdout) const noexcept {
         BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
-        EVP_PKEY_print_public(bio_out, _handle.get(), 0, NULL);
+        int ret = print_ex(bio_out);
         BIO_free(bio_out);
+        return ret;
     }
 
     // Virtual methods for derived classes
@@ -446,10 +451,8 @@ public:
         // std::cout << "Destroying PrivateKey " << key_id << std::endl;
     }
 
-    virtual void print(FILE* stream = stdout) const noexcept override {
-        BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
-        EVP_PKEY_print_private(bio_out, _handle.get(), 0, NULL);
-        BIO_free(bio_out);
+    virtual int print_ex(BIO* bio) const noexcept override {
+        return EVP_PKEY_print_private(bio, _handle.get(), 0, NULL);
     }
 
     // Load private key from IoSink

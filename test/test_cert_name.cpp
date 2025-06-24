@@ -295,7 +295,7 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName BIO operations", "
 		BIO* bio = BIO_new(BIO_s_mem());
 		REQUIRE(bio != nullptr);
 
-		REQUIRE(name.print_to_bio(bio));
+		REQUIRE(name.print_ex(bio));
 
 		char* data;
 		long length = BIO_get_mem_data(bio, &data);
@@ -317,7 +317,7 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName BIO operations", "
 	}
 
 	SECTION("Print with null BIO fails") {
-		REQUIRE_FALSE(name.print_to_bio(nullptr));
+		REQUIRE_FALSE(name.print_ex(nullptr));
 	}
 }
 
@@ -419,7 +419,7 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName error handling", "
 		REQUIRE(empty_name.get_entry_value(NID_commonName).empty());
 		REQUIRE(empty_name.get_entry_value(NID_commonName, nullptr, 0) == -1);
 		REQUIRE(empty_name.to_string().empty());
-		REQUIRE(empty_name.print_to_bio(BIO_new(BIO_s_mem())));
+		REQUIRE(empty_name.print_ex(BIO_new(BIO_s_mem())));
 	}
 
 	SECTION("Invalid entry operations") {

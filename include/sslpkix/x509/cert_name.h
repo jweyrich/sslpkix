@@ -244,20 +244,22 @@ public:
 
     /**
      * @brief Print the certificate name to a BIO
-     * @note If bio is null, return false
      */
-    bool print_to_bio(BIO* bio, int indent = 0) const noexcept {
-        if (!handle_ || !bio) {
-            return false;
-        }
-
-        const int result = X509_NAME_print(bio, handle_.get(), indent);
+    bool print_ex(BIO* bio, int indent = 0, int flags = XN_FLAG_COMPAT) const noexcept {
+        const int result = X509_NAME_print_ex(bio, handle_.get(), indent, flags);
         return result > 0;
+    }
+
+    bool print(FILE* stream = stdout) const noexcept {
+        BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
+        const auto ret = print_ex(bio_out);
+        BIO_free(bio_out);
+        return ret;
     }
 
     // Legacy method name
     bool one_line_print(BIO* bio, int indent = 0) const noexcept {
-        return print_to_bio(bio, indent);
+        return print_ex(bio, indent, XN_FLAG_ONELINE & ~ASN1_STRFLGS_ESC_MSB);
     }
 
     // Common field accessors
