@@ -1,10 +1,10 @@
 # Description
 
-A dead simple to use C++ wrapper for handling digital certificates using OpenSSL. 
+A dead simple to use C++ wrapper for handling digital certificates using OpenSSL.
 
 # Dependencies
 
-OpenSSL 0.9.8 or newer, including OpenSSL 1.1.
+OpenSSL 3.5.0 or newer.
 
 # How to build
 

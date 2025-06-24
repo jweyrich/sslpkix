@@ -13,12 +13,6 @@ namespace sslpkix {
 static OSSL_PROVIDER* g_provider = nullptr;
 
 bool startup(void) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-	CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
-	OpenSSL_add_all_algorithms(); // Add all cipher and digest algorithms
-	ERR_load_crypto_strings();
-	//ERR_load_OBJ_strings();
-#else
 	uint64_t opts = 0
 		| OPENSSL_INIT_ADD_ALL_CIPHERS
 		| OPENSSL_INIT_ADD_ALL_DIGESTS
@@ -26,32 +20,27 @@ bool startup(void) {
 		| OPENSSL_INIT_ENGINE_OPENSSL
 		| OPENSSL_INIT_ENGINE_RDRAND
 		;
-	OPENSSL_init_crypto(opts, NULL);
+	int init_result = OPENSSL_init_crypto(opts, NULL);
+	if (init_result != 1) {
+		std::cerr << "Error initializing OpenSSL: " << ERR_get_error() << std::endl;
+		return false;
+	}
 	g_provider = OSSL_PROVIDER_load(nullptr, "default");
-#endif
+	if (!g_provider) {
+		std::cerr << "Error loading OpenSSL provider: " << ERR_get_error() << std::endl;
+		return false;
+	}
 	return true;
 }
 
 void shutdown(void) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-	X509V3_EXT_cleanup();
-
-	// Quote from the official documentation: OBJ_cleanup() was deprecated in OpenSSL 1.1.0 by OPENSSL_init_crypto(3) and should not be used.
-	OBJ_cleanup(); // for any OBJ_create
-	ERR_free_strings(); // for ERR_load_crypto_strings
-	EVP_cleanup(); // for OpenSSL_add_all_algorithms
-	RAND_cleanup();
-	CRYPTO_cleanup_all_ex_data();
-#else
-	// FIXME(jweyrich): Figure out if we're missing a cleanup to avoid the curent memory leaks.
+	// TODO(jweyrich): Figure out if we're missing a cleanup to avoid the curent memory leaks.
 	// Test using: valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all -s --num-callers=40 ./run_tests
 	if (g_provider) {
 		OSSL_PROVIDER_unload(g_provider);
 		g_provider = nullptr;
 	}
-	X509V3_EXT_cleanup(); // Not needed in OpenSSL 3.x
 	OPENSSL_cleanup();
-#endif
 }
 
 bool seed_prng(void) {

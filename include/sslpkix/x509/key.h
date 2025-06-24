@@ -46,12 +46,7 @@ namespace detail {
     // Algorithm Type Detection
     inline int get_algorithm_type(EVP_PKEY* pkey) {
         if (!pkey) return 0;
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-        return EVP_PKEY_type(pkey->type);
-#else
         return EVP_PKEY_base_id(pkey);
-#endif
     }
 
     // Base template for cipher traits (specializations will be provided)
@@ -399,12 +394,7 @@ protected:
             return;
         }
 
-        // Increment reference count and create a new unique_ptr
-        #if OPENSSL_VERSION_NUMBER < 0x10100000L
-        CRYPTO_add(&handle->references, 1, CRYPTO_LOCK_EVP_PKEY);
-        #else
         EVP_PKEY_up_ref(handle);
-        #endif
         _handle.reset(handle);
     }
 
