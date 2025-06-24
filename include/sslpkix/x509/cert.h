@@ -193,6 +193,16 @@ public:
         return true;
     }
 
+    /**
+     * @brief Checks if the certificate is self-signed.
+     * @note For success the issuer and subject names must match, the components of the authority key identifier (if present)
+     * must match the subject key identifier etc. The signature itself is actually verified only if verify_signature is 1, as
+     * for explicitly trusted certificates this verification is not worth the effort.
+     */
+    bool is_self_signed() const noexcept {
+        return X509_self_signed(_handle.get(), 1) == 1;
+    }
+
     void set_version(Version version) {
         if (!_handle) {
             throw std::logic_error("Certificate handle is null");

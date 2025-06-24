@@ -23,10 +23,10 @@ struct TestFixture {
 	TestFixture& operator=(TestFixture&&) = delete;
 
 protected:
-	TestObjects make_test_objects() {
-		auto keypair = sslpkix::factory::generate_key_rsa(512);
-		auto subject = create_subject();
+	TestObjects make_test_objects(bool is_self_signed = false) {
 		auto issuer = create_issuer();
+		auto subject = is_self_signed ? create_issuer() : create_subject();
+		auto keypair = sslpkix::factory::generate_key_rsa(512);
 		auto private_key = std::make_unique<sslpkix::PrivateKey>(keypair);
 		auto public_key = private_key->pubkey();
 		auto cert = create_certificate(*subject, *issuer, *public_key);
@@ -110,6 +110,13 @@ TEST_CASE_METHOD(TestFixture, "Certificate creation", "[certificate][creation]")
 	sslpkix::Certificate certCopy2;
 	certCopy2 = *test.cert;
 	REQUIRE(certCopy2 == *test.cert);
+}
+
+TEST_CASE_METHOD(TestFixture, "Certificate self-signed", "[certificate][self-signed]")
+{
+	auto test = make_test_objects(true);
+	REQUIRE(test.cert->subject() == test.cert->issuer());
+	REQUIRE(test.cert->is_self_signed());
 }
 
 TEST_CASE("CertificateName entries", "[certificate_name][entries]")
