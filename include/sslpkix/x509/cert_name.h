@@ -301,6 +301,35 @@ public:
         }
         // Both valid - compare
         int result = X509_NAME_cmp(lhs.handle_.get(), rhs.handle_.get());
+
+#if OPENSSL_VERSION_NUMBER < 0x30100000L
+        /*
+         * Bug in OpenSSL < 3.1.0
+         *
+         * In June 2023, OpenSSL 3.1.0 merged a fix (commit 1cfc919) that updates the comparison
+         * logic to properly handle cases where both names are empty. Before this patch, comparing
+         * two empty X509_NAME objects returned -2 (error), instead of 0 (equal).
+         * Since OpenSSL 3.1.0, X509_NAME_cmp correctly returns 0 when both names are empty.
+         *
+         * See https://mta.openssl.org/pipermail/openssl-commits/2023-June/039218.html
+         */
+        if (result == -2) {
+            unsigned char* enc1 = nullptr;
+            int len1 = i2d_X509_NAME(lhs.handle_.get(), &enc1);
+
+            unsigned char* enc2 = nullptr;
+            int len2 = i2d_X509_NAME(rhs.handle_.get(), &enc2);
+
+            OPENSSL_free(enc1);
+            OPENSSL_free(enc2);
+
+            // If both are empty, they're equal
+            if (len1 == 0 && len2 == 0) {
+                return true;
+            }
+        }
+#endif
+
         // See https://docs.openssl.org/master/man3/X509_NAME_cmp/#return-values
         if (result == -2) {
             throw error::cert_name::RuntimeError("Failed to compare certificate names");
@@ -320,6 +349,35 @@ public:
         if (!rhs.handle_) return false;
 
         int result = X509_NAME_cmp(lhs.handle_.get(), rhs.handle_.get());
+
+#if OPENSSL_VERSION_NUMBER < 0x30100000L
+        /*
+         * Bug in OpenSSL < 3.1.0
+         *
+         * In June 2023, OpenSSL 3.1.0 merged a fix (commit 1cfc919) that updates the comparison
+         * logic to properly handle cases where both names are empty. Before this patch, comparing
+         * two empty X509_NAME objects returned -2 (error), instead of 0 (equal).
+         * Since OpenSSL 3.1.0, X509_NAME_cmp correctly returns 0 when both names are empty.
+         *
+         * See https://mta.openssl.org/pipermail/openssl-commits/2023-June/039218.html
+         */
+        if (result == -2) {
+            unsigned char* enc1 = nullptr;
+            int len1 = i2d_X509_NAME(lhs.handle_.get(), &enc1);
+
+            unsigned char* enc2 = nullptr;
+            int len2 = i2d_X509_NAME(rhs.handle_.get(), &enc2);
+
+            OPENSSL_free(enc1);
+            OPENSSL_free(enc2);
+
+            // If both are empty, they're equal, so lhs < rhs is false
+            if (len1 == 0 && len2 == 0) {
+                return false;
+            }
+        }
+#endif
+
         // See https://docs.openssl.org/master/man3/X509_NAME_cmp/#return-values
         if (result == -2) {
             throw error::cert_name::RuntimeError("Failed to compare certificate names");
