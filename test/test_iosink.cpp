@@ -3,6 +3,7 @@
 #include <fstream>
 #include <filesystem>
 #include <cstring>
+#include <random>
 #include <sstream>
 #include "sslpkix/iosink.h"
 
@@ -11,7 +12,7 @@ using namespace sslpkix;
 // Test fixture for creating temporary files
 class TempFileFixture {
 public:
-    TempFileFixture() : temp_filename("test_temp_file.txt") {}
+    TempFileFixture() : temp_filename("temp_" + std::to_string(std::random_device()()) + ".tmp") {}
 
     ~TempFileFixture() {
         cleanup();
