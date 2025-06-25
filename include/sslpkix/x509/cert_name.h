@@ -290,7 +290,7 @@ public:
     void set_email(const std::string& value) { add_entry_by_nid(NID_pkcs9_emailAddress, value); }
 
     // Comparison operators
-    friend bool operator==(const CertificateName& lhs, const CertificateName& rhs) noexcept {
+    friend bool operator==(const CertificateName& lhs, const CertificateName& rhs) {
         // Both null
         if (!lhs.handle_ && !rhs.handle_) {
             return true;
@@ -300,20 +300,32 @@ public:
             return false;
         }
         // Both valid - compare
-        return X509_NAME_cmp(lhs.handle_.get(), rhs.handle_.get()) == 0;
+        int result = X509_NAME_cmp(lhs.handle_.get(), rhs.handle_.get());
+        // See https://docs.openssl.org/master/man3/X509_NAME_cmp/#return-values
+        if (result == -2) {
+            throw error::cert_name::RuntimeError("Failed to compare certificate names");
+        }
+
+        return result == 0; // 0 means equal, -1 means less than, 1 means greater than
     }
 
-    friend bool operator!=(const CertificateName& lhs, const CertificateName& rhs) noexcept {
+    friend bool operator!=(const CertificateName& lhs, const CertificateName& rhs) {
         return !(lhs == rhs);
     }
 
-    friend bool operator<(const CertificateName& lhs, const CertificateName& rhs) noexcept {
+    friend bool operator<(const CertificateName& lhs, const CertificateName& rhs) {
         // Handle null cases consistently
         if (!lhs.handle_ && !rhs.handle_) return false;
         if (!lhs.handle_) return true;
         if (!rhs.handle_) return false;
 
-        return X509_NAME_cmp(lhs.handle_.get(), rhs.handle_.get()) < 0;
+        int result = X509_NAME_cmp(lhs.handle_.get(), rhs.handle_.get());
+        // See https://docs.openssl.org/master/man3/X509_NAME_cmp/#return-values
+        if (result == -2) {
+            throw error::cert_name::RuntimeError("Failed to compare certificate names");
+        }
+
+        return result < 0;
     }
 
 protected:
