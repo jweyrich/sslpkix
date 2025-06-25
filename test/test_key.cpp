@@ -250,12 +250,14 @@ TEST_CASE_METHOD(KeyTestFixture, "Key comparison operators", "[Key][comparison]"
     Key key1, key2, key3;
 
     SECTION("Default keys comparison") {
-        // Different keys should not be equal (even though they're both default constructed)
-        REQUIRE(key1 != key2);
-        REQUIRE_FALSE(key1 == key2);
+        // Comparting invalid keys should throw an error
+        REQUIRE_THROWS_AS(key1 != key2, error::key::RuntimeError);
+        REQUIRE_THROWS_AS(key1 == key2, error::key::RuntimeError);
     }
 
     SECTION("Different keys comparison") {
+        // Copying a key should result in an equal key
+        // So comparing the copied key with the original should not throw an error
         Key copied_key1(key1.handle());
         REQUIRE(copied_key1 == key1);
         REQUIRE_FALSE(copied_key1 != key1);
@@ -264,11 +266,15 @@ TEST_CASE_METHOD(KeyTestFixture, "Key comparison operators", "[Key][comparison]"
         REQUIRE(copied_key2 == key2);
         REQUIRE_FALSE(copied_key2 != key2);
 
+        // Moving a key invalidates the original key
+        // So comparing the new key with the original should return false
         Key new_key3(std::move(key1));
         REQUIRE(new_key3 != key1);
         REQUIRE_FALSE(new_key3 == key1);
+        // While the new key is valid, the original key is invalid
         REQUIRE(new_key3.is_valid());
         REQUIRE_FALSE(key1.is_valid());
+        // The new key should have a handle, the original key should not
         REQUIRE(new_key3.handle() != nullptr);
         REQUIRE(key1.handle() == nullptr);
     }
