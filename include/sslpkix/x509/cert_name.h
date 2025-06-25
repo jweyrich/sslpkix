@@ -7,9 +7,18 @@
 #include <cassert>
 #include <openssl/x509v3.h>
 #include <openssl/bio.h>
-#include "sslpkix/error.h"
+#include "sslpkix/exception.h"
 
 namespace sslpkix {
+
+namespace error {
+    namespace cert_name {
+        using RuntimeError = RuntimeError;
+        using BadAllocError = BadAllocError;
+        using InvalidArgumentError = InvalidArgumentError;
+        using LogicError = LogicError;
+    } // cert_name
+} // namespace error
 
 class CertificateName {
 public:
@@ -37,7 +46,7 @@ public:
     CertificateName() {
         auto* new_handle = X509_NAME_new();
         if (!new_handle) {
-            throw std::bad_alloc();
+            throw error::cert_name::BadAllocError("Failed to create new certificate name");
         }
         reset(new_handle);
     }
@@ -54,14 +63,14 @@ public:
         if (other.handle_) {
             auto* duplicated = X509_NAME_dup(other.handle_.get());
             if (!duplicated) {
-                throw std::runtime_error("Failed to duplicate X509_NAME. Reason: " + get_error_string());
+                throw error::cert_name::BadAllocError("Failed to duplicate certificate name");
             }
             reset(duplicated);
         } else {
             // If other is empty, create a new empty certificate name
             auto* new_handle = X509_NAME_new();
             if (!new_handle) {
-                throw std::bad_alloc();
+                throw error::cert_name::BadAllocError("Failed to create new certificate name");
             }
             reset(new_handle);
         }
@@ -103,11 +112,11 @@ public:
 
     /**
      * @brief Add an entry to the certificate name
-     * @note If it fails to add the entry, throw an exception of type std::runtime_error
+     * @note If it fails to add the entry, throw an exception of type error::cert_name::InvalidArgumentError
      */
     void add_entry_by_nid(int nid, const std::string& value) {
         if (value.empty()) {
-            throw std::invalid_argument("Empty string is not allowed for certificate name entry (nid=" + std::to_string(nid) + ")");
+            throw error::cert_name::InvalidArgumentError("Empty string is not allowed for certificate name entry (nid=" + std::to_string(nid) + ")");
         }
 
         const int result = X509_NAME_add_entry_by_NID(
@@ -119,13 +128,13 @@ public:
         );
 
         if (result != 1) {
-            throw std::runtime_error("Failed to add entry (nid=" + std::to_string(nid) + ", value=" + value + ") to certificate name. Reason: " + get_error_string());
+            throw error::cert_name::RuntimeError("Failed to add entry (nid=" + std::to_string(nid) + ", value=" + value + ") to certificate name");
         }
     }
 
     /**
      * @brief Add an entry to the certificate name
-     * @note If it fails to add the entry, throw an exception of type std::runtime_error
+     * @note If it fails to add the entry, throw an exception of type error::cert_name::RuntimeError
      */
     void add_entry_by_txt(const std::string& field, const std::string& value) {
         const int result = X509_NAME_add_entry_by_txt(
@@ -137,7 +146,7 @@ public:
         );
 
         if (result != 1) {
-           throw std::runtime_error("Failed to add entry (field=" + field + ", value=" + value + ") to certificate name. Reason: " + get_error_string());
+           throw error::cert_name::RuntimeError("Failed to add entry (field=" + field + ", value=" + value + ") to certificate name");
         }
     }
 

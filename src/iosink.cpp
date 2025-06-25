@@ -18,9 +18,9 @@ IoSink& operator<<(IoSink& sink, const std::string& str) {
 	} while (ret > 0 && written_size < total_size);
 
 	if (ret == 0 || ret == -1)
-		throw std::ios_base::failure("BIO_write failed");
+		throw error::iosink::IosBaseFailure("BIO_write failed");
 	else if (ret == -2)
-		throw std::ios_base::failure("BIO_write is not implemented for this BIO");
+		throw error::iosink::IosBaseFailure("BIO_write is not implemented for this BIO");
 
 	// TODO: Need to check result? 1=success, 0 or -1=failure
 	ret = BIO_flush(sink.handle());
@@ -38,7 +38,7 @@ IoSink& operator>>(IoSink& sink, std::string& str) {
 			str.append(buf, ret);
 	} while (ret > 0);
 
-	// man BIO_read - http://www.manpagez.com/man/3/BIO_read/ 
+	// man BIO_read - http://www.manpagez.com/man/3/BIO_read/
 	// NOTES
 	// 		A 0 or -1 return is not necessarily an indication of an error. In
 	// 		particular when the source/sink is non-blocking or of a certain type it
@@ -48,7 +48,7 @@ IoSink& operator>>(IoSink& sink, std::string& str) {
 	if (ret == -1)
 		; // EOF?
 	else if (ret == -2)
-		throw std::ios_base::failure("BIO_read is not implemented for this BIO");
+		throw error::iosink::IosBaseFailure("BIO_read is not implemented for this BIO");
 
 	return sink;
 }
@@ -68,7 +68,7 @@ std::ostream& operator<<(std::ostream& stream, IoSink& sink) {
 	if (ret == -1)
 		; // EOF?
 	else if (ret == -2)
-		throw std::ios_base::failure("BIO_read is not implemented for this BIO");
+		throw error::iosink::IosBaseFailure("BIO_read is not implemented for this BIO");
 
 	return stream;
 }
@@ -82,9 +82,9 @@ std::istream& operator>>(std::istream& stream, IoSink& sink) {
 		ret = BIO_write(sink.handle(), buf, stream.gcount());
 		// BIO_write must succeed writing the exact amount of bytes we pass to it.
 		if (ret == 0 || ret == -1)
-			throw std::ios_base::failure("BIO_write failed");
+			throw error::iosink::IosBaseFailure("BIO_write failed");
 		else if (ret == -2)
-			throw std::ios_base::failure("BIO_write is not implemented for this BIO");
+			throw error::iosink::IosBaseFailure("BIO_write is not implemented for this BIO");
 	}
 
 	// TODO: Need to check result? 1=success, 0 or -1=failure

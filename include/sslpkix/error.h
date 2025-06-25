@@ -4,7 +4,11 @@
 
 namespace sslpkix {
 
-std::string get_error_string(void);
-void print_errors(FILE *file);
+namespace error {
+
+std::string get_error_string(void) noexcept;
+void print_errors(FILE *file) noexcept;
+
+} // namespace error
 
 } // namespace sslpkix

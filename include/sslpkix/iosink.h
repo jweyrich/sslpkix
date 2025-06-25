@@ -6,8 +6,19 @@
 #include <memory>
 #include <functional>
 #include <openssl/bio.h>
+#include "sslpkix/exception.h"
 
 namespace sslpkix {
+
+namespace error {
+    namespace iosink {
+        using BadAllocError = BadAllocError;
+        using RuntimeError = RuntimeError;
+        using InvalidArgumentError = InvalidArgumentError;
+        using LogicError = LogicError;
+        using IosBaseFailure = std::ios_base::failure;
+    } // iosink
+} // namespace error
 
 class IoSink {
 public:
@@ -69,7 +80,7 @@ public:
     virtual void open(const std::string& filename, const std::string& mode) {
         BIO* bio = BIO_new_file(filename.c_str(), mode.c_str());
         if (!bio) {
-            throw std::runtime_error("Failed to open file: " + filename);
+            throw error::iosink::RuntimeError("Failed to open file: " + filename);
         }
 
         reset_handle(bio);
@@ -83,7 +94,7 @@ public:
 
     virtual std::string read_all() const override {
         if (!is_open()) {
-            throw std::runtime_error("Cannot read from closed file: " + source());
+            throw error::iosink::RuntimeError("Cannot read from closed file: " + source());
         }
 
         BIO *bio = handle();
@@ -99,7 +110,7 @@ public:
             } else {
                 if (!BIO_should_retry(bio)) {
                     // BIO_read failed and it's not a retryable error
-                    throw std::runtime_error("BIO_read failed");
+                    throw error::iosink::RuntimeError("BIO_should_retry failed on " + source());
                 }
                 // If it's retryable, you might want to add sleep/retry logic
             }
@@ -118,23 +129,23 @@ public:
 
     void seek(long offset) {
         if (!is_open()) {
-            throw std::logic_error("Cannot seek on closed file");
+            throw error::iosink::LogicError("Cannot seek on closed file: " + source());
         }
 
         int ret = BIO_seek(handle(), offset);
         if (ret == -1) {
-            throw std::runtime_error("Failed to seek to file offset: " + std::to_string(offset));
+            throw error::iosink::RuntimeError("Failed to seek to file offset " + std::to_string(offset) + " on " + source());
         }
     }
 
     int tell() const {
         if (!is_open()) {
-            throw std::logic_error("Cannot tell on closed file");
+            throw error::iosink::LogicError("Cannot tell on closed file: " + source());
         }
 
         int ret = BIO_tell(handle());
         if (ret == -1) {
-            throw std::runtime_error("Failed to tell on file");
+            throw error::iosink::RuntimeError("Failed to tell on file: " + source());
         }
         return ret;
     }
@@ -149,10 +160,10 @@ public:
 
     virtual void open_ro(const void* buffer, int size = -1) {
         if (!buffer) {
-            throw std::invalid_argument("Buffer cannot be null");
+            throw error::iosink::InvalidArgumentError("Buffer cannot be null on " + source());
         }
         if (size == 0) {
-            throw std::invalid_argument("Size cannot be zero");
+            throw error::iosink::InvalidArgumentError("Size cannot be zero on " + source());
         }
 
         // Calculate size if not provided
@@ -160,14 +171,14 @@ public:
         if (size == -1) {
             actual_size = static_cast<int>(std::strlen(static_cast<const char*>(buffer)));
             if (actual_size == 0) {
-                throw std::invalid_argument("Buffer cannot be empty (calculated size is zero)");
+                throw error::iosink::InvalidArgumentError("Buffer cannot be empty (calculated size is zero) on " + source());
             }
         }
 
         // BIO_new_mem_buf expects non-const void*, but it's used read-only
         BIO* bio = BIO_new_mem_buf(buffer, actual_size);
         if (!bio) {
-            throw std::runtime_error("Failed to create read-only memory BIO");
+            throw error::iosink::BadAllocError("Failed to create read-only memory BIO on " + source());
         }
 
         reset_handle(bio);
@@ -178,7 +189,7 @@ public:
     virtual void open_rw() {
         BIO* bio = BIO_new(BIO_s_mem());
         if (!bio) {
-            throw std::bad_alloc();
+            throw error::iosink::BadAllocError("Failed to create read-write memory BIO on " + source());
         }
 
         reset_handle(bio);
@@ -188,7 +199,7 @@ public:
 
     virtual std::string read_all() const override {
         if (!is_open()) {
-            throw std::logic_error("Cannot read from closed memory sink");
+            throw error::iosink::LogicError("Cannot read from closed memory sink: " + source());
         }
 
         char* data = nullptr;

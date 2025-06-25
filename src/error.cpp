@@ -1,22 +1,28 @@
 #include "sslpkix/error.h"
-#include "sslpkix/bio_wrapper.h"
 #include <openssl/err.h>
-#include <openssl/bio.h>
 #include <string>
 
 namespace sslpkix {
 
-std::string get_error_string() {
-    BioWrapper bio(BIO_new(BIO_s_mem()));
-    ERR_print_errors(bio.get());
+namespace error {
 
-    char* errorData;
-    long errorLen = BIO_get_mem_data(bio.get(), &errorData);
-    return std::string(errorData, errorLen);
+std::string get_error_string(void) noexcept {
+    std::string result;
+    unsigned long err;
+    char buf[256];
+
+    while ((err = ERR_get_error()) != 0) {
+        ERR_error_string_n(err, buf, sizeof(buf));
+        result += std::string(buf) + "\n";
+    }
+
+    return result.empty() ? std::string() : result;
 }
 
-void print_errors(FILE *file) {
+void print_errors(FILE *file) noexcept {
 	ERR_print_errors_fp(file);
 }
+
+} // namespace error
 
 } // namespace sslpkix

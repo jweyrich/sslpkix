@@ -10,24 +10,18 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include "sslpkix/iosink.h"
-#include "sslpkix/error.h"
+#include "sslpkix/exception.h"
 
 namespace sslpkix {
 
-// Custom exception for key-related errors
-class KeyException : public std::runtime_error {
-public:
-    explicit KeyException(const std::string& message)
-        : std::runtime_error(message)
-        , _openssl_error_string(get_error_string()) {}
-
-    std::string openssl_error_string() const {
-        return _openssl_error_string;
-    }
-
-private:
-    std::string _openssl_error_string;
-};
+namespace error {
+    namespace key {
+        using BadAllocError = BadAllocError;
+        using RuntimeError = RuntimeError;
+        using InvalidArgumentError = InvalidArgumentError;
+        using LogicError = LogicError;
+    } // key
+} // namespace error
 
 namespace detail {
     // Custom deleter for EVP_PKEY
@@ -173,7 +167,7 @@ protected:
     void create_new_key() {
         auto new_key = EVP_PKEY_new();
         if (!new_key) {
-            throw std::bad_alloc();
+            throw error::key::BadAllocError("Failed to create new key");
         }
         // std::cout << "Created new key " << new_key << std::endl;
         _handle.reset(new_key);
@@ -433,7 +427,7 @@ public:
         static_assert(detail::is_cipher_supported_v<CipherType>,
                      "Cipher type not supported");
         if (!assign(cipher_key)) {
-            throw KeyException("Failed to create private key from cipher. Reason: " + get_error_string());
+            throw error::key::RuntimeError("Failed to create private key from cipher");
         }
     }
 
@@ -450,7 +444,7 @@ public:
         auto new_key = PEM_read_bio_PrivateKey(sink.handle(), nullptr, nullptr,
             const_cast<void*>(static_cast<const void*>(password)));
         if (!new_key) {
-            throw KeyException("Failed to load private key from " + sink.source() + ". Reason: " + get_error_string());
+            throw error::key::RuntimeError("Failed to load private key from " + sink.source());
         }
         // std::cout << "Loaded private key " << new_key << std::endl;
         _handle.reset(new_key);
@@ -459,13 +453,13 @@ public:
     // Save private key to IoSink
     void save(IoSink& sink) const override {
         if (!_handle) {
-            throw KeyException("Invalid private key handle");
+            throw error::key::LogicError("Invalid private key handle");
         }
 
         int ret = PEM_write_bio_PrivateKey(sink.handle(), _handle.get(),
                                          nullptr, nullptr, 0, 0, nullptr);
         if (ret == 0) {
-            throw KeyException("Failed to save private key to " + sink.source() + ". Reason: " + get_error_string());
+            throw error::key::RuntimeError("Failed to save private key to " + sink.source());
         }
     }
 
@@ -477,7 +471,7 @@ public:
 
         try {
             return std::make_unique<PrivateKey>(cipher_key);
-        } catch (const KeyException&) {
+        } catch (const std::exception& e) {
             return nullptr;
         }
     }
@@ -488,7 +482,7 @@ public:
         try {
             IoSink sink; // Assuming IoSink can be constructed from filename
             return std::make_unique<PrivateKey>(sink, password);
-        } catch (const KeyException&) {
+        } catch (const std::exception& e) {
             return nullptr;
         }
     }
@@ -499,7 +493,7 @@ public:
         try {
             IoSink sink; // Assuming IoSink can be constructed from memory
             return std::make_unique<PrivateKey>(sink, password);
-        } catch (const KeyException&) {
+        } catch (const std::exception& e) {
             return nullptr;
         }
     }
@@ -513,7 +507,7 @@ namespace factory {
     inline std::unique_ptr<Key> make_key() {
         try {
             return std::make_unique<Key>();
-        } catch (const KeyException&) {
+        } catch (const std::exception& e) {
             return nullptr;
         }
     }
@@ -521,7 +515,7 @@ namespace factory {
     inline std::unique_ptr<PrivateKey> make_private_key() {
         try {
             return std::make_unique<PrivateKey>();
-        } catch (const KeyException&) {
+        } catch (const std::exception& e) {
             return nullptr;
         }
     }

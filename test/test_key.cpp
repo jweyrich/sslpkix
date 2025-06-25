@@ -411,7 +411,7 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey error conditions", "[PrivateKey][er
         std::string invalid_pem = "invalid pem data";
         MemorySink sink;
         REQUIRE_NOTHROW(sink.open_ro(invalid_pem.c_str(), invalid_pem.length()));
-        REQUIRE_THROWS_AS(private_key.load(sink), KeyException);
+        REQUIRE_THROWS_AS(private_key.load(sink), error::key::RuntimeError);
     }
 }
 
