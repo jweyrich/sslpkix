@@ -297,7 +297,16 @@ public:
 
         EVP_PKEY* this_pkey = X509_REQ_get0_pubkey(_handle.get());
         EVP_PKEY* provided_pkey = key.handle();
-        return EVP_PKEY_cmp(this_pkey, provided_pkey) == 1;
+
+        int result = EVP_PKEY_eq(this_pkey, provided_pkey);
+        // See https://docs.openssl.org/3.1/man3/EVP_PKEY_eq//#return-values
+        switch (result) {
+            case 1: return true; // Keys are equal
+            case 0: return false; // Keys are different
+            case -1: throw error::cert_req::RuntimeError("Failed to compare keys");
+            case -2: throw error::cert_req::RuntimeError("Operation is not supported");
+            default: throw error::cert_req::RuntimeError("Unexpected result from EVP_PKEY_eq");
+        }
     }
 
     bool print_ex(BIO* bio, int name_fmt_flags = XN_FLAG_COMPAT, int cert_skip_flags = X509_FLAG_COMPAT) const noexcept {

@@ -366,13 +366,16 @@ public:
         if (!lhs._handle || !rhs._handle) {
             return lhs._handle == rhs._handle;
         }
-        // TODO(jweyrich): do we need EVP_PKEY_cmp_parameters() too?
-        int result = EVP_PKEY_cmp(lhs._handle.get(), rhs._handle.get());
-        // See https://docs.openssl.org/master/man3/EVP_PKEY_cmp/#return-values
-        if (result == -2) {
-            throw error::key::RuntimeError("Failed to compare keys");
+
+        int result = EVP_PKEY_eq(lhs._handle.get(), rhs._handle.get());
+        // See https://docs.openssl.org/3.1/man3/EVP_PKEY_eq//#return-values
+        switch (result) {
+            case 1: return true; // Keys are equal
+            case 0: return false; // Keys are different
+            case -1: throw error::key::RuntimeError("Failed to compare keys");
+            case -2: throw error::key::RuntimeError("Operation is not supported");
+            default: throw error::key::RuntimeError("Unexpected result from EVP_PKEY_eq");
         }
-        return result == 1; // 1 means equal, 0 means different
     }
 
     friend bool operator!=(const Key& lhs, const Key& rhs) {
