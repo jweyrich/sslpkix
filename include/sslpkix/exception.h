@@ -40,6 +40,10 @@ public:
         return _what.c_str();
     }
 
+    std::string reason() const noexcept {
+        return _reason;
+    }
+
 private:
     const std::string _reason;
     mutable std::string _what;
