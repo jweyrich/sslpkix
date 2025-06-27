@@ -112,7 +112,7 @@ public:
 
     /**
      * @brief Add an entry to the certificate name
-     * @note If it fails to add the entry, throw an exception of type error::cert_name::InvalidArgumentError
+     * @note If it fails to add the entry, throw an exception of type error::cert_name::RuntimeError
      */
     void add_entry_by_nid(int nid, const std::string& value) {
         if (value.empty()) {
