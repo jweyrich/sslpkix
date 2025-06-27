@@ -66,6 +66,9 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName handle constructor
 		CertificateName name(raw_name);
 		REQUIRE(name);
 		REQUIRE(name.handle() == raw_name);
+
+		// Cleanup the handle
+		X509_NAME_free(raw_name);
 	}
 
 	SECTION("Null handle does not throw exception") {

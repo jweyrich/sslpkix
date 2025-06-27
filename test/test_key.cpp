@@ -299,7 +299,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key external handle operations", "[Key][extern
         REQUIRE(new_key.is_valid());
         REQUIRE(new_key.handle() == external_key);
 
-        // EVP_PKEY_free(external_key);
+        EVP_PKEY_free(external_key);
     }
 }
 

@@ -389,14 +389,21 @@ public:
     std::unique_ptr<Key> pubkey() const;
 
 protected:
-    // Set external handle (for cases where we don't own the EVP_PKEY)
+    /**
+     * @brief Set the external handle object
+     * @note This method increments the reference count of the existing key so it can be safely used and free'd elsewhere.
+     *
+     * @param handle
+     */
     void set_external_handle(EVP_PKEY* handle) {
         if (!handle) {
             _handle.reset();
             return;
         }
 
-        EVP_PKEY_up_ref(handle);
+        if (!EVP_PKEY_up_ref(handle)) {
+            throw error::key::RuntimeError("Failed to increment reference count of the external key");
+        }
         _handle.reset(handle);
     }
 

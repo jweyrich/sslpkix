@@ -168,7 +168,9 @@ public:
 
         // X509_REQ_set_pubkey does not take ownership of the key
         // so we need to increment the reference count of the key.
-        EVP_PKEY_up_ref(key.handle());
+        if (!EVP_PKEY_up_ref(key.handle())) {
+            throw error::cert_req::RuntimeError("Failed to increment reference count of the key");
+        }
 
         int ret = X509_REQ_set_pubkey(_handle.get(), key.handle());
         if (ret == 0) {

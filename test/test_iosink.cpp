@@ -41,8 +41,10 @@ public:
 TEST_CASE("IoSink Base Class", "[IoSink]") {
     class TestableIoSink : public IoSink {
     public:
-        void set_test_handle(BIO* bio) {
-            reset_handle(bio);
+        void transfer_handle_ownership(BIO* bio) {
+            // This will transfer ownership of the BIO handle to this IoSink instance
+            // and it will be freed when the IoSink is destroyed.
+            IoSink::reset_handle(bio);
         }
     };
 
@@ -61,7 +63,7 @@ TEST_CASE("IoSink Base Class", "[IoSink]") {
         BIO* test_bio = BIO_new(BIO_s_mem());
         REQUIRE(test_bio != nullptr);
 
-        sink.set_test_handle(test_bio);
+        sink.transfer_handle_ownership(test_bio);
         REQUIRE(sink.handle() == test_bio);
         REQUIRE(sink.is_open());
 
