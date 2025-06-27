@@ -37,10 +37,13 @@ namespace detail {
     using handle_type = EVP_PKEY;
     using handle_ptr = std::unique_ptr<handle_type, EVP_PKEY_Deleter>;
 
-    // Algorithm Type Detection
+    /**
+     * @brief Get the algorithm type object
+     * @return int The algorithm type (EVP_PKEY_RSA, EVP_PKEY_EC etc, or EVP_PKEY_NONE if the key is invalid)
+     */
     inline int get_algorithm_type(EVP_PKEY* pkey) {
-        if (!pkey) return 0;
-        return EVP_PKEY_base_id(pkey);
+        if (!pkey) return EVP_PKEY_NONE; // Zero!
+        return EVP_PKEY_get_base_id(pkey);
     }
 
     // Base template for cipher traits (specializations will be provided)
@@ -256,7 +259,7 @@ public:
      * @brief Returns the bit length of the key, or 0 if the size is not available or the key is not valid.
      */
     int bit_length() const {
-        return EVP_PKEY_bits(_handle.get());
+        return EVP_PKEY_get_bits(_handle.get());
     }
 
     /**
