@@ -316,16 +316,26 @@ public:
         if (result == -2) {
             unsigned char* enc1 = nullptr;
             int len1 = i2d_X509_NAME(lhs.handle_.get(), &enc1);
+            if (len1 < 0) {
+                throw error::cert_name::RuntimeError("Failed to encode lhs certificate name");
+            }
 
             unsigned char* enc2 = nullptr;
             int len2 = i2d_X509_NAME(rhs.handle_.get(), &enc2);
+            if (len2 < 0) {
+                throw error::cert_name::RuntimeError("Failed to encode rhs certificate name");
+            }
 
             OPENSSL_free(enc1);
             OPENSSL_free(enc2);
 
-            // If both are empty, they're equal
-            if (len1 == 0 && len2 == 0) {
+            const int EMPTY_DER_SIZE = 2;
+            if (len1 == EMPTY_DER_SIZE && len2 == EMPTY_DER_SIZE) {
+                // If both are empty, they're equal
                 return true;
+            } else if (len1 == EMPTY_DER_SIZE || len2 == EMPTY_DER_SIZE) {
+                // If one is empty, they're not equal
+                return false;
             }
         }
 #endif
@@ -364,16 +374,27 @@ public:
         if (result == -2) {
             unsigned char* enc1 = nullptr;
             int len1 = i2d_X509_NAME(lhs.handle_.get(), &enc1);
+            if (len1 < 0) {
+                throw error::cert_name::RuntimeError("Failed to encode lhs certificate name");
+            }
 
             unsigned char* enc2 = nullptr;
             int len2 = i2d_X509_NAME(rhs.handle_.get(), &enc2);
+            if (len2 < 0) {
+                throw error::cert_name::RuntimeError("Failed to encode rhs certificate name");
+            }
 
             OPENSSL_free(enc1);
             OPENSSL_free(enc2);
 
-            // If both are empty, they're equal, so lhs < rhs is false
-            if (len1 == 0 && len2 == 0) {
-                return false;
+            const int EMPTY_DER_SIZE = 2;
+            if (len1 == EMPTY_DER_SIZE && len2 == EMPTY_DER_SIZE) {
+                // If both are empty, they're equal
+                return false; // lhs < rhs is false
+            } else if (len1 == EMPTY_DER_SIZE || len2 == EMPTY_DER_SIZE) {
+                // If one is empty, they're not equal
+                // If lhs is empty, it's less than rhs, otherwise it's greater
+                return len1 == EMPTY_DER_SIZE;
             }
         }
 #endif
