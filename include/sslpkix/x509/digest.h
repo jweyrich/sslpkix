@@ -96,7 +96,7 @@ public:
 			#ifndef OPENSSL_NO_SM3
 			case TYPE_SM3: return EVP_sm3();
 			#endif
-			default: return EVP_md_null();
+			default: throw std::invalid_argument("Unhandled digest type");
 		}
 	}
 };
