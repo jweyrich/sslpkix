@@ -548,9 +548,9 @@ namespace factory {
     }
 
     inline EVP_PKEY* generate_key_ec_p256() {
-        const char* curve_name = "P-256";
+        const char* group = "prime256v1"; // TODO(jweyrich): Make this a typed (enum) argument?
         OSSL_PARAM params[] = {
-            OSSL_PARAM_utf8_string("curve", const_cast<char*>(curve_name), 0),
+            OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, const_cast<char*>(group), 0),
             OSSL_PARAM_END
         };
         return factory::generate_key_ex("EC", params);
