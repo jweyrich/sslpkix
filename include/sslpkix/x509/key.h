@@ -344,6 +344,48 @@ public:
         return nullptr;
     }
 
+    /**
+     * @brief Assign an existing key to this Key object.
+     * @note It does not create or copy the provided key.
+     * @note This method increments the reference count of the existing key so it can be safely used and free'd elsewhere.
+     * @param key The existing EVP_PKEY to assign.
+     * @return true if the assignment was successful, false otherwise.
+     */
+    void assign(EVP_PKEY* key) {
+        if (!key) {
+            throw error::key::InvalidArgumentError("Cannot assign a null key");
+        }
+        auto provider = EVP_PKEY_get0_provider(key);
+        if (!provider) {
+            throw error::key::InvalidArgumentError("Cannot assign a legacy key");
+        }
+        if (!EVP_PKEY_up_ref(key)) {
+            throw error::key::RuntimeError("Failed to increment reference count of the key");
+        }
+        _handle.reset(key);
+    }
+
+    /**
+     * @brief Copies the contents of an existing key to this Key object.
+     * @note This method creates a new EVP_PKEY by duplicating the existing key.
+     * @param key The existing EVP_PKEY to copy.
+     * @return true if the copy was successful, false otherwise.
+     */
+    void copy(const EVP_PKEY* key) {
+        if (!key) {
+            throw error::key::InvalidArgumentError("Cannot copy from a null key");
+        }
+        auto provider = EVP_PKEY_get0_provider(key);
+        if (!provider) {
+            throw error::key::InvalidArgumentError("Cannot copy from a legacy key");
+        }
+        EVP_PKEY* new_key = EVP_PKEY_dup(const_cast<EVP_PKEY*>(key));
+        if (!new_key) {
+            throw error::key::RuntimeError("Failed to copy key");
+        }
+        _handle.reset(new_key);
+    }
+
     virtual int print_ex(BIO* bio) const noexcept {
         return EVP_PKEY_print_public(bio, _handle.get(), 0, NULL);
     }
