@@ -139,6 +139,7 @@ namespace factory {
         }
 
         // Optionally set parameters
+        // Note: EVP_PKEY_CTX_set_params only works after EVP_PKEY_keygen_init is called
         if (params && EVP_PKEY_CTX_set_params(ctx.get(), params) != 1) {
             throw error::key::RuntimeError("Failed on EVP_PKEY_CTX_set_params");
         }

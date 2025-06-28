@@ -46,113 +46,264 @@ namespace detail {
         return EVP_PKEY_get_base_id(pkey);
     }
 
-    // Base template for cipher traits (specializations will be provided)
-    template<typename CipherType>
-    struct cipher_traits {
-        static_assert(std::is_same_v<CipherType, void>, "Cipher type not supported");
+} // namespace detail
+
+enum class KeyType {
+    UNKNOWN = EVP_PKEY_NONE,
+    #ifndef OPENSSL_NO_RSA
+    RSA = EVP_PKEY_RSA,
+    #endif
+    #ifndef OPENSSL_NO_DSA
+    DSA = EVP_PKEY_DSA,
+    #endif
+    #ifndef OPENSSL_NO_DH
+    DH = EVP_PKEY_DH,
+    #endif
+    #ifndef OPENSSL_NO_EC
+    EC = EVP_PKEY_EC,
+    #endif
+    // Edwards curve forms (signature)
+    ED25519 = EVP_PKEY_ED25519,
+    ED448 = EVP_PKEY_ED448,
+    // Montgomery curve forms (key exchange)
+    X25519 = EVP_PKEY_X25519,
+    X448 = EVP_PKEY_X448,
+};
+
+namespace factory {
+    // Move to a KeyGenerator class?
+    EVP_PKEY* generate_key_ex(const char* key_type, const OSSL_PARAM* params = nullptr);
+}
+
+namespace traits {
+    // Base template for key type traits (specializations will be provided)
+    template<typename KeyType>
+    struct key_type_traits {
+        static_assert(std::is_same_v<KeyType, void>, "Key type not supported");
     };
 
-    // SFINAE helper to check if a cipher type is supported
+    // SFINAE helper to check if a key type is supported
     template<typename T, typename = void>
-    struct is_cipher_supported : std::false_type {};
+    struct is_key_type_supported : std::false_type {};
 
     template<typename T>
-    struct is_cipher_supported<T, std::void_t<decltype(cipher_traits<T>::evp_pkey_type)>>
+    struct is_key_type_supported<T, std::void_t<decltype(key_type_traits<T>::evp_pkey_type)>>
         : std::true_type {};
 
     template<typename T>
-    constexpr bool is_cipher_supported_v = is_cipher_supported<T>::value;
+    constexpr bool is_key_type_supported_v = is_key_type_supported<T>::value;
 
-    // Template-based cipher operations
-    template<typename CipherType>
-    class CipherOperations {
-        static_assert(is_cipher_supported_v<CipherType>, "Cipher type not supported");
-
-    public:
-        static bool assign(EVP_PKEY* pkey, CipherType* key) {
-            if (!pkey || !key) return false;
-            int evp_pkey_type = cipher_traits<CipherType>::evp_pkey_type;
-            return cipher_traits<CipherType>::assign_func(pkey, evp_pkey_type, key) != 0;
-        }
-
-        static bool copy(EVP_PKEY* pkey, CipherType* key) {
-            if (!pkey || !key) return false;
-            return cipher_traits<CipherType>::copy_func(pkey, key) != 0;
-        }
-
-        static constexpr int evp_type() {
-            return cipher_traits<CipherType>::evp_pkey_type;
-        }
-    };
-
-    // RSA cipher traits specialization
     #ifndef OPENSSL_NO_RSA
+    struct RSA {
+        static inline EVP_PKEY* generate_key(int bits) {
+            const OSSL_PARAM params[] = {
+                OSSL_PARAM_int(OSSL_PKEY_PARAM_RSA_BITS, &bits),
+                OSSL_PARAM_END
+            };
+
+            return factory::generate_key_ex("RSA", params);
+        }
+    };
+
+    // RSA key traits specialization
     template<>
-    struct cipher_traits<RSA> {
+    struct key_type_traits<traits::RSA> {
+        static constexpr KeyType key_type = KeyType::RSA;
         static constexpr int evp_pkey_type = EVP_PKEY_RSA;
-        static constexpr auto assign_func = EVP_PKEY_assign;
-        static constexpr auto copy_func = EVP_PKEY_set1_RSA;
-        using native_type = RSA;
+        static constexpr bool can_select_digest = true;
+        static constexpr bool can_key_exchange = true;
+        static constexpr bool can_sign = true;
+        static constexpr auto generate_func = traits::RSA::generate_key;
     };
     #endif
 
-    // DSA cipher traits specialization
     #ifndef OPENSSL_NO_DSA
+    struct DSA {
+        static inline EVP_PKEY* generate_key(int pbits, int qbits) {
+            OSSL_PARAM params[] = {
+                OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_PBITS, &pbits),
+                OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_QBITS, &qbits),
+                OSSL_PARAM_END
+            };
+            return factory::generate_key_ex("DSA", params);
+        }
+    };
+
+    // DSA key traits specialization
     template<>
-    struct cipher_traits<DSA> {
+    struct key_type_traits<traits::DSA> {
+        static constexpr KeyType key_type = KeyType::DSA;
         static constexpr int evp_pkey_type = EVP_PKEY_DSA;
-        static constexpr auto assign_func = EVP_PKEY_assign;
-        static constexpr auto copy_func = EVP_PKEY_set1_DSA;
-        using native_type = DSA;
+        static constexpr bool can_select_digest = true;
+        static constexpr bool can_key_exchange = false; // DSA keys are only for digital signatures
+        static constexpr bool can_sign = true;
+        static constexpr auto generate_func = traits::DSA::generate_key;
     };
     #endif
 
-    // DH cipher traits specialization
     #ifndef OPENSSL_NO_DH
+    struct DH {
+        enum class KeyGroup {
+            // FFDHE groups are defined in RFC 7919
+            FFDHE_2048 = NID_ffdhe2048,
+            FFDHE_3072 = NID_ffdhe3072,
+            FFDHE_4096 = NID_ffdhe4096,
+            FFDHE_6144 = NID_ffdhe6144,
+            FFDHE_8192 = NID_ffdhe8192,
+            // MODP groups are defined in RFC 3526
+            MODP_1536 = NID_modp_1536,
+            MODP_2048 = NID_modp_2048,
+            MODP_3072 = NID_modp_3072,
+            MODP_4096 = NID_modp_4096,
+            MODP_6144 = NID_modp_6144,
+            MODP_8192 = NID_modp_8192,
+        };
+
+        static inline EVP_PKEY* generate_key(KeyGroup group) {
+            const char* group_name = OBJ_nid2sn(static_cast<int>(group));
+            OSSL_PARAM params[] = {
+                OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, const_cast<char*>(group_name), 0),
+                OSSL_PARAM_END
+            };
+            return factory::generate_key_ex("DH", params);
+        }
+    };
+
+    // DH key traits specialization
     template<>
-    struct cipher_traits<DH> {
+    struct key_type_traits<traits::DH> {
+        static constexpr KeyType key_type = KeyType::DH;
         static constexpr int evp_pkey_type = EVP_PKEY_DH;
-        static constexpr auto assign_func = EVP_PKEY_assign;
-        static constexpr auto copy_func = EVP_PKEY_set1_DH;
-        using native_type = DH;
+        static constexpr bool can_select_digest = false; // DH keys do not support digest selection
+        static constexpr bool can_key_exchange = true; // DH keys are primarily used for key exchange
+        static constexpr bool can_sign = false; // DH keys do not support signing
+        static constexpr auto generate_func = traits::DH::generate_key;
     };
     #endif
 
-    // EC cipher traits specialization
     #ifndef OPENSSL_NO_EC
+    struct EC {
+        enum class KeyGroup {
+            P256 = NID_X9_62_prime256v1,
+            P384 = NID_secp384r1,
+            P521 = NID_secp521r1,
+            BRAINPOOL_P256_R1 = NID_brainpoolP256r1,
+            BRAINPOOL_P384_R1 = NID_brainpoolP384r1,
+            BRAINPOOL_P512_R1 = NID_brainpoolP512r1,
+        };
+
+        static inline EVP_PKEY* generate_key(KeyGroup group) {
+            const char* group_name = OBJ_nid2sn(static_cast<int>(group));
+            OSSL_PARAM params[] = {
+                OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, const_cast<char*>(group_name), 0),
+                OSSL_PARAM_END
+            };
+            return factory::generate_key_ex("EC", params);
+        }
+    };
+
+    // EC key traits specialization
     template<>
-    struct cipher_traits<EC_KEY> {
+    struct key_type_traits<traits::EC> {
+        static constexpr KeyType key_type = KeyType::EC;
         static constexpr int evp_pkey_type = EVP_PKEY_EC;
-        static constexpr auto assign_func = EVP_PKEY_assign;
-        static constexpr auto copy_func = EVP_PKEY_set1_EC_KEY;
-        using native_type = EC_KEY;
+        static constexpr bool can_select_digest = false; // EC keys do not support digest selection
+        // Note: EC keys can be used for both signatures and key exchange, but the specific
+        // capabilities depend on the curve and the context in which they are used.
+        // For example, P-256 can be used for ECDH key exchange, while P-384 and P-521 are often used for digital signatures.
+        static constexpr bool can_key_exchange = true;
+        static constexpr bool can_sign = true;
+        static constexpr auto generate_func = traits::EC::generate_key;
     };
     #endif
 
-} // namespace detail
+    struct ED {
+        // Edwards curves
+        enum class KeyGroup {
+            ED25519 = NID_ED25519,
+            ED448 = NID_ED448,
+        };
+
+        static inline EVP_PKEY* generate_key(KeyGroup type) {
+            const char* key_type_name = OBJ_nid2sn(static_cast<int>(type));
+            return factory::generate_key_ex(key_type_name);
+        }
+    };
+
+    // ED key traits specialization
+    template<>
+    struct key_type_traits<traits::ED> {
+        static constexpr KeyType key_type = KeyType::ED25519;
+        static constexpr int evp_pkey_type = EVP_PKEY_ED25519;
+        static constexpr bool can_select_digest = false; // ED keys do not support digest selection
+        static constexpr bool can_key_exchange = false; // ED keys do not support key exchange
+        static constexpr bool can_sign = true; // ED keys are primarily used for digital signatures (except X25519 and X448)
+        static constexpr auto generate_func = traits::ED::generate_key;
+    };
+
+    struct X25519 {
+        static inline EVP_PKEY* generate_key() {
+            return factory::generate_key_ex("X25519");
+        }
+    };
+
+    // X25519 key traits specialization
+    template<>
+    struct key_type_traits<traits::X25519> {
+        static constexpr KeyType key_type = KeyType::X25519;
+        static constexpr int evp_pkey_type = EVP_PKEY_X25519;
+        static constexpr bool can_select_digest = false; // X25519 keys do not support digest selection
+        static constexpr bool can_key_exchange = true; // X25519 keys are primarily used for key exchange
+        static constexpr bool can_sign = false; // X25519 keys do not support signing
+        static constexpr auto generate_func = traits::X25519::generate_key;
+    };
+
+    struct X448 {
+        static inline EVP_PKEY* generate_key() {
+            return factory::generate_key_ex("X448");
+        }
+    };
+
+    // X25519 key traits specialization
+    template<>
+    struct key_type_traits<traits::X448> {
+        static constexpr KeyType key_type = KeyType::X448;
+        static constexpr int evp_pkey_type = EVP_PKEY_X448;
+        static constexpr bool can_select_digest = false; // X448 keys do not support digest selection
+        static constexpr bool can_key_exchange = true; // X448 keys are primarily used for key exchange
+        static constexpr bool can_sign = false; // X448 keys do not support signing
+        static constexpr auto generate_func = traits::X448::generate_key;
+    };
+} // namespace traits
 
 //
 // NOTE: With OpenSSL, the private key also contains the public key information
 //
 class Key {
 public:
-    struct Cipher {
-        enum class Type {
+    inline KeyType algorithm_to_key_type(int algorithm) const noexcept {
+        switch (algorithm) {
+            case EVP_PKEY_NONE: return KeyType::UNKNOWN;
             #ifndef OPENSSL_NO_RSA
-            RSA = EVP_PKEY_RSA,
+            case EVP_PKEY_RSA: return KeyType::RSA;
             #endif
             #ifndef OPENSSL_NO_DSA
-            DSA = EVP_PKEY_DSA,
+            case EVP_PKEY_DSA: return KeyType::DSA;
             #endif
             #ifndef OPENSSL_NO_DH
-            DH = EVP_PKEY_DH,
+            case EVP_PKEY_DH: return KeyType::DH;
             #endif
             #ifndef OPENSSL_NO_EC
-            EC = EVP_PKEY_EC,
+            case EVP_PKEY_EC: return KeyType::EC;
             #endif
-            UNKNOWN = 0
-        };
-    };
+            case EVP_PKEY_ED25519: return KeyType::ED25519;
+            case EVP_PKEY_ED448: return KeyType::ED448;
+            case EVP_PKEY_X25519: return KeyType::X25519;
+            case EVP_PKEY_X448: return KeyType::X448;
+            // Add more cases as needed for other key types
+            default: return KeyType::UNKNOWN;
+        }
+    }
 
 protected:
     detail::handle_ptr _handle{nullptr, detail::EVP_PKEY_Deleter()};
@@ -186,6 +337,10 @@ public:
     // Constructor for external handle (does not create new key)
     explicit Key(EVP_PKEY* external_handle) {
         key_id = static_key_counter++;
+        // auto provider = EVP_PKEY_get0_provider(external_handle);
+        // if (!provider) {
+        //     throw error::key::InvalidArgumentError("Cannot assign a legacy key");
+        // }
         // std::cout << "Creating key (external) " << key_id << std::endl;
         set_external_handle(external_handle);
     }
@@ -250,9 +405,9 @@ public:
     }
 
     // Get algorithm type
-    Cipher::Type algorithm() const {
+    KeyType algorithm() const {
         int algorithm = detail::get_algorithm_type(_handle.get());
-        return static_cast<Cipher::Type>(algorithm);
+        return algorithm_to_key_type(algorithm);
     }
 
     /**
@@ -274,7 +429,7 @@ public:
     }
 
     /**
-     * @brief Returns the base type of the key (EVP_PKEY_RSA, EVP_PKEY_DSA, etc.),
+     * @brief Returns the base type of the key (EVP_PKEY_RSA, EVP_PKEY_EC, etc.),
      * or EVP_PKEY_NONE if the key is not valid.
      */
     int base_type() const noexcept {
@@ -287,61 +442,6 @@ public:
      */
     bool can_sign() const noexcept {
         return EVP_PKEY_can_sign(_handle.get()) == 1;
-    }
-
-    // Template-based cipher operations
-    template<typename CipherType>
-    bool assign(CipherType* key) {
-        static_assert(detail::is_cipher_supported_v<CipherType>,
-                     "Cipher type not supported");
-        return detail::CipherOperations<CipherType>::assign(_handle.get(), key);
-    }
-
-    template<typename CipherType>
-    bool copy(CipherType* key) {
-        static_assert(detail::is_cipher_supported_v<CipherType>,
-                     "Cipher type not supported");
-        return detail::CipherOperations<CipherType>::copy(_handle.get(), key);
-    }
-
-    // Type-safe cipher checking
-    template<typename CipherType>
-    bool is_cipher_type() const {
-        static_assert(detail::is_cipher_supported_v<CipherType>,
-                     "Cipher type not supported");
-        return detail::get_algorithm_type(_handle.get()) ==
-               detail::cipher_traits<CipherType>::evp_pkey_type;
-    }
-
-    // Get cipher-specific handle with type safety
-    template<typename CipherType>
-    CipherType* get_cipher_handle() const {
-        static_assert(detail::is_cipher_supported_v<CipherType>,
-                     "Cipher type not supported");
-
-        if (!is_cipher_type<CipherType>()) {
-            return nullptr;
-        }
-
-        // Use appropriate EVP_PKEY_get* function based on cipher type
-        if constexpr (std::is_same_v<CipherType, RSA>) {
-            #ifndef OPENSSL_NO_RSA
-            return EVP_PKEY_get1_RSA(_handle.get());
-            #endif
-        } else if constexpr (std::is_same_v<CipherType, DSA>) {
-            #ifndef OPENSSL_NO_DSA
-            return EVP_PKEY_get1_DSA(_handle.get());
-            #endif
-        } else if constexpr (std::is_same_v<CipherType, DH>) {
-            #ifndef OPENSSL_NO_DH
-            return EVP_PKEY_get1_DH(_handle.get());
-            #endif
-        } else if constexpr (std::is_same_v<CipherType, EC_KEY>) {
-            #ifndef OPENSSL_NO_EC
-            return EVP_PKEY_get1_EC_KEY(_handle.get());
-            #endif
-        }
-        return nullptr;
     }
 
     /**
@@ -481,16 +581,6 @@ public:
         load(sink, password);
     }
 
-    // Constructor that creates from cipher
-    template<typename CipherType>
-    explicit PrivateKey(CipherType* cipher_key) : Key(true) {
-        static_assert(detail::is_cipher_supported_v<CipherType>,
-                     "Cipher type not supported");
-        if (!assign(cipher_key)) {
-            throw error::key::RuntimeError("Failed to create private key from cipher");
-        }
-    }
-
     virtual ~PrivateKey() {
         // std::cout << "Destroying PrivateKey " << key_id << std::endl;
     }
@@ -523,19 +613,6 @@ public:
         }
     }
 
-    // Template-based factory methods
-    template<typename CipherType>
-    static std::unique_ptr<PrivateKey> create_from_cipher(CipherType* cipher_key) {
-        static_assert(detail::is_cipher_supported_v<CipherType>,
-                     "Cipher type not supported");
-
-        try {
-            return std::make_unique<PrivateKey>(cipher_key);
-        } catch (const std::exception& e) {
-            return nullptr;
-        }
-    }
-
     // Factory method to create a private key from file
     static std::unique_ptr<PrivateKey> from_file([[maybe_unused]]const std::string& filename,
                                                 const char* password = nullptr) {
@@ -561,9 +638,6 @@ public:
 
 // Factory functions for creating keys
 namespace factory {
-    // Move to a KeyGenerator class?
-    EVP_PKEY* generate_key_ex(const char* key_type, const OSSL_PARAM* params = nullptr);
-
     inline std::unique_ptr<Key> make_key() {
         try {
             return std::make_unique<Key>();
@@ -580,34 +654,33 @@ namespace factory {
         }
     }
 
+    // Factory function to generate a key based on type
+    template<typename KeyType, typename... Args,
+        std::enable_if_t<
+            std::is_invocable_v<decltype(traits::key_type_traits<KeyType>::generate_func), Args...>, int> = 0>
+    inline EVP_PKEY* generate_key(Args&&... args) {
+        static_assert(traits::is_key_type_supported_v<KeyType>, "Key type not supported");
+        return traits::key_type_traits<KeyType>::generate_func(std::forward<Args>(args)...);
+    }
+
     inline EVP_PKEY* generate_key_rsa(int bits = 1024) {
-        const OSSL_PARAM params[] = {
-            OSSL_PARAM_int(OSSL_PKEY_PARAM_RSA_BITS, &bits),
-            OSSL_PARAM_END
-        };
-
-        return factory::generate_key_ex("RSA", params);
+        using key_type = traits::RSA;
+        return traits::key_type_traits<key_type>::generate_func(bits);
     }
 
-    inline EVP_PKEY* generate_key_ec_p256() {
-        const char* group = "prime256v1"; // TODO(jweyrich): Make this a typed (enum) argument?
-        OSSL_PARAM params[] = {
-            OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, const_cast<char*>(group), 0),
-            OSSL_PARAM_END
-        };
-        return factory::generate_key_ex("EC", params);
+    inline EVP_PKEY* generate_key_dsa(int pbits = 2048, int qbits = 256) {
+        using key_type = traits::DSA;
+        return traits::key_type_traits<key_type>::generate_func(pbits, qbits);
     }
 
-    inline EVP_PKEY* generate_key_ed25519() {
-        return factory::generate_key_ex("ED25519");
+    inline EVP_PKEY* generate_key_ec(traits::EC::KeyGroup group = traits::EC::KeyGroup::P256) {
+        using key_type = traits::EC;
+        return traits::key_type_traits<key_type>::generate_func(group);
     }
 
-    // Template-based key creation
-    template<typename CipherType>
-    std::unique_ptr<Key> make_key_for_cipher() {
-        static_assert(detail::is_cipher_supported_v<CipherType>,
-                     "Cipher type not supported");
-        return make_key();
+    inline EVP_PKEY* generate_key_ed(traits::ED::KeyGroup group = traits::ED::KeyGroup::ED25519) {
+        using key_type = traits::ED;
+        return traits::key_type_traits<key_type>::generate_func(group);
     }
 }
 

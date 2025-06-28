@@ -87,6 +87,9 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Construction", "[certifica
         Certificate cert(x509);
         REQUIRE(cert.is_valid());
         REQUIRE(cert.handle() == x509);
+
+        // Cleanup the handle
+        // X509_free(x509);
     }
 
     SECTION("Constructor with null handle throws") {

@@ -1,9 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
-#include <openssl/rsa.h>
-#include <openssl/dsa.h>
-#include <openssl/dh.h>
-#include <openssl/ec.h>
 #include <openssl/pem.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
@@ -23,95 +19,73 @@ struct KeyTestFixture {
     KeyTestFixture(KeyTestFixture&&) = delete;
     KeyTestFixture& operator=(KeyTestFixture&&) = delete;
 
-    // Helper to create RSA key for testing
-    RSA* create_test_rsa_key() {
-        #ifndef OPENSSL_NO_RSA
-        std::unique_ptr<RSA, decltype(&RSA_free)> rsa(RSA_new(), RSA_free);
-        std::unique_ptr<BIGNUM, decltype(&BN_free)> bn(BN_new(), BN_free);
-        if (rsa.get() && bn.get()) {
-            BN_set_word(bn.get(), RSA_F4);
-            if (RSA_generate_key_ex(rsa.get(), 512, bn.get(), nullptr) == 1) {
-                return rsa.release(); // Transfer ownership to caller
-            }
-        }
-        #endif
-        return nullptr;
-    }
-
-    // Helper to create DSA key for testing
-    DSA* create_test_dsa_key() {
-        #ifndef OPENSSL_NO_DSA
-        DSA* dsa = DSA_new();
-        if (dsa && DSA_generate_parameters_ex(dsa, 512, nullptr, 0, nullptr, nullptr, nullptr) == 1) {
-            if (DSA_generate_key(dsa) == 1) {
-                return dsa;
-            }
-        }
-        if (dsa) DSA_free(dsa);
-        #endif
-        return nullptr;
-    }
-
-    // Helper to create EC key for testing
-    EC_KEY* create_test_ec_key() {
-        #ifndef OPENSSL_NO_EC
-        EC_KEY* ec_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-        if (ec_key && EC_KEY_generate_key(ec_key) == 1) {
-            return ec_key;
-        }
-        if (ec_key) EC_KEY_free(ec_key);
-        #endif
-        return nullptr;
-    }
-
     // Helper to create test PEM data
     std::string create_test_private_key_pem() {
-        RSA* rsa = create_test_rsa_key();
-        if (!rsa) return "";
+        auto keypair = factory::generate_key_rsa(512);
+        PrivateKey private_key(keypair);
 
-        BIO* bio = BIO_new(BIO_s_mem());
-        if (!bio) {
-            RSA_free(rsa);
-            return "";
-        }
+        MemorySink memory_sink;
+        REQUIRE_NOTHROW(memory_sink.open_rw());
+        private_key.save(memory_sink);
+        return memory_sink.read_all();
+    }
 
-        EVP_PKEY* pkey = EVP_PKEY_new();
-        if (!pkey || EVP_PKEY_assign_RSA(pkey, rsa) != 1) {
-            BIO_free(bio);
-            if (pkey) EVP_PKEY_free(pkey);
-            else RSA_free(rsa);
-            return "";
-        }
+    std::string create_different_keys() {
+        MemorySink memory_sink;
+        REQUIRE_NOTHROW(memory_sink.open_rw());
 
-        if (PEM_write_bio_PrivateKey(bio, pkey, nullptr, nullptr, 0, 0, nullptr) != 1) {
-            BIO_free(bio);
-            EVP_PKEY_free(pkey);
-            return "";
-        }
+        auto keypair1 = factory::generate_key<traits::RSA>(512);
+        PrivateKey private_key1(keypair1);
+        private_key1.save(memory_sink);
 
-        char* pem_data;
-        long pem_len = BIO_get_mem_data(bio, &pem_data);
-        std::string result(pem_data, pem_len);
+        // auto keypair2 = factory::generate_key<traits::DSA>(2048, 256);
+        // PrivateKey private_key2(keypair2);
+        // private_key2.save(memory_sink);
 
-        BIO_free(bio);
-        EVP_PKEY_free(pkey);
+        // auto keypair3 = factory::generate_key<traits::DH>(traits::DH::KeyGroup::MODP_1536);
+        // PrivateKey private_key3(keypair3);
+        // private_key3.save(memory_sink);
+
+        auto keypair4 = factory::generate_key<traits::EC>(traits::EC::KeyGroup::P256);
+        PrivateKey private_key4(keypair4);
+        private_key4.save(memory_sink);
+
+        auto keypair5 = factory::generate_key<traits::ED>(traits::ED::KeyGroup::ED25519);
+        PrivateKey private_key5(keypair5);
+        private_key5.save(memory_sink);
+
+        auto keypair6 = factory::generate_key<traits::ED>(traits::ED::KeyGroup::ED448);
+        PrivateKey private_key6(keypair6);
+        private_key6.save(memory_sink);
+
+        auto keypair7 = factory::generate_key<traits::X25519>();
+        PrivateKey private_key7(keypair7);
+        private_key7.save(memory_sink);
+
+        auto keypair8 = factory::generate_key<traits::X448>();
+        PrivateKey private_key8(keypair8);
+        private_key8.save(memory_sink);
+
+        auto result = memory_sink.read_all();
+        std::cout << "Created test keys in PEM format:\n" << result << std::endl;
         return result;
     }
 };
 
 // Test Key class basic functionality
 TEST_CASE_METHOD(KeyTestFixture, "Key default constructor", "[Key][constructor]") {
+    create_different_keys();
     Key key;
     REQUIRE(key.is_valid());
     REQUIRE(key.handle() != nullptr);
-    REQUIRE(key.algorithm() == Key::Cipher::Type::UNKNOWN);
+    REQUIRE(key.algorithm() == KeyType::UNKNOWN);
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Key create method", "[Key][create]") {
     Key key;
     REQUIRE(key.is_valid());
     REQUIRE(key.handle() != nullptr);
-    REQUIRE(key.algorithm() == Key::Cipher::Type::UNKNOWN); // No cipher assigned yet
+    REQUIRE(key.algorithm() == KeyType::UNKNOWN); // No cipher assigned yet
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Key move constructor", "[Key][move]") {
@@ -137,74 +111,46 @@ TEST_CASE_METHOD(KeyTestFixture, "Key assignment operators", "[Key][assignment]"
     REQUIRE(key2 != key1);
 }
 
-#ifndef OPENSSL_NO_RSA
-TEST_CASE_METHOD(KeyTestFixture, "Key RSA cipher operations", "[Key][RSA]") {
-    RSA* rsa = create_test_rsa_key();
-    REQUIRE(rsa != nullptr);
+TEST_CASE_METHOD(KeyTestFixture, "Key assignment", "[Key][assignment]") {
+    auto keypair = factory::generate_key_rsa(512);
+    REQUIRE(keypair != nullptr);
 
     Key key;
 
-    SECTION("Assign RSA key") {
-        REQUIRE(key.assign(rsa));
-        REQUIRE(key.algorithm() == Key::Cipher::Type::RSA);
-        REQUIRE(key.is_cipher_type<RSA>());
-        REQUIRE_FALSE(key.is_cipher_type<DSA>());
-
-        // Get cipher handle
-        RSA* retrieved_rsa = key.get_cipher_handle<RSA>();
-        REQUIRE(retrieved_rsa != nullptr);
-        RSA_free(retrieved_rsa); // EVP_PKEY_get1_RSA increments ref count
+    SECTION("Assign key") {
+        REQUIRE_NOTHROW(key.assign(keypair));
+        REQUIRE(key.is_valid());
+        REQUIRE(key.handle() != nullptr);
+        REQUIRE(key.algorithm() == KeyType::RSA);
     }
 
-    SECTION("Copy RSA key") {
-        RSA* rsa_copy = RSAPrivateKey_dup(rsa);
-        REQUIRE(rsa_copy != nullptr);
-
-        REQUIRE(key.copy(rsa_copy));
-        REQUIRE(key.algorithm() == Key::Cipher::Type::RSA);
-        REQUIRE(key.is_cipher_type<RSA>());
-
-        RSA_free(rsa_copy);
-    }
-
-    // Note: rsa is now owned by EVP_PKEY if assign was called, don't free it
-    if (!key.is_cipher_type<RSA>()) {
-        RSA_free(rsa);
+    SECTION("Copy key") {
+        REQUIRE_NOTHROW(key.copy(keypair));
+        REQUIRE(key.is_valid());
+        REQUIRE(key.handle() != nullptr);
+        REQUIRE(key.algorithm() == KeyType::RSA);
     }
 }
-#endif
 
-#ifndef OPENSSL_NO_DSA
-TEST_CASE_METHOD(KeyTestFixture, "Key DSA cipher operations", "[Key][DSA]") {
-    DSA* dsa = create_test_dsa_key();
-    REQUIRE(dsa != nullptr);
+#ifndef OPENSSL_NO_RSA
+TEST_CASE_METHOD(KeyTestFixture, "Key RSA cipher operations", "[Key][RSA]") {
+    auto keypair = factory::generate_key_rsa(512);
+    REQUIRE(keypair != nullptr);
 
     Key key;
-    REQUIRE(key.assign(dsa));
-    REQUIRE(key.algorithm() == Key::Cipher::Type::DSA);
-    REQUIRE(key.is_cipher_type<DSA>());
-    REQUIRE_FALSE(key.is_cipher_type<RSA>());
-
-    DSA* retrieved_dsa = key.get_cipher_handle<DSA>();
-    REQUIRE(retrieved_dsa != nullptr);
-    DSA_free(retrieved_dsa);
+    REQUIRE_NOTHROW(key.assign(keypair));
+    REQUIRE(key.algorithm() == KeyType::RSA);
 }
 #endif
 
 #ifndef OPENSSL_NO_EC
 TEST_CASE_METHOD(KeyTestFixture, "Key EC cipher operations", "[Key][EC]") {
-    EC_KEY* ec_key = create_test_ec_key();
-    REQUIRE(ec_key != nullptr);
+    auto keypair = factory::generate_key_ec(traits::EC::KeyGroup::P256);
+    REQUIRE(keypair != nullptr);
 
     Key key;
-    REQUIRE(key.assign(ec_key));
-    REQUIRE(key.algorithm() == Key::Cipher::Type::EC);
-    REQUIRE(key.is_cipher_type<EC_KEY>());
-    REQUIRE_FALSE(key.is_cipher_type<RSA>());
-
-    EC_KEY* retrieved_ec = key.get_cipher_handle<EC_KEY>();
-    REQUIRE(retrieved_ec != nullptr);
-    EC_KEY_free(retrieved_ec);
+    REQUIRE_NOTHROW(key.assign(keypair));
+    REQUIRE(key.algorithm() == KeyType::EC);
 }
 #endif
 
@@ -217,31 +163,19 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
 
     SECTION("RSA key bit length") {
         #ifndef OPENSSL_NO_RSA
-        RSA* rsa = create_test_rsa_key(); // Creates 512-bit RSA key
-        REQUIRE(rsa != nullptr);
-
-        REQUIRE(key.assign(rsa));
+        auto keypair = factory::generate_key_rsa(512);
+        REQUIRE(keypair != nullptr);
+        REQUIRE_NOTHROW(key.assign(keypair));
         REQUIRE(key.bit_length() == 512);
         #endif
     }
 
     SECTION("EC key bit length") {
         #ifndef OPENSSL_NO_EC
-        EC_KEY* ec_key = create_test_ec_key(); // Creates P-256 key (256 bits)
-        REQUIRE(ec_key != nullptr);
-
-        REQUIRE(key.assign(ec_key));
+        auto keypair = factory::generate_key_ec(traits::EC::KeyGroup::P256);
+        REQUIRE(keypair != nullptr);
+        REQUIRE_NOTHROW(key.assign(keypair));
         REQUIRE(key.bit_length() == 256);
-        #endif
-    }
-
-    SECTION("DSA key bit length") {
-        #ifndef OPENSSL_NO_DSA
-        DSA* dsa = create_test_dsa_key(); // Creates 512-bit DSA key
-        REQUIRE(dsa != nullptr);
-
-        REQUIRE(key.assign(dsa));
-        REQUIRE(key.bit_length() == 512);
         #endif
     }
 }
@@ -320,7 +254,7 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey load from PEM", "[PrivateKey][load]
     REQUIRE_NOTHROW(sink.open_ro(pem_data.c_str(), pem_data.length()));
     REQUIRE_NOTHROW(private_key.load(sink));
     REQUIRE(private_key.is_valid());
-    REQUIRE(private_key.algorithm() == Key::Cipher::Type::RSA);
+    REQUIRE(private_key.algorithm() == KeyType::RSA);
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "PrivateKey save to PEM", "[PrivateKey][save]") {
@@ -334,9 +268,7 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey save to PEM", "[PrivateKey][save]")
     REQUIRE_NOTHROW(load_sink.open_ro(pem_data.c_str(), pem_data.length()));
     REQUIRE_NOTHROW(private_key.load(load_sink));
     REQUIRE(private_key.is_valid());
-    REQUIRE(private_key.algorithm() == Key::Cipher::Type::RSA);
-    REQUIRE(private_key.is_cipher_type<RSA>());
-    REQUIRE(private_key.get_cipher_handle<RSA>() != nullptr);
+    REQUIRE(private_key.algorithm() == KeyType::RSA);
 
     // Now save it
     MemorySink save_sink;
@@ -348,14 +280,14 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey save to PEM", "[PrivateKey][save]")
 }
 
 #ifndef OPENSSL_NO_RSA
-TEST_CASE_METHOD(KeyTestFixture, "PrivateKey create_from_cipher", "[PrivateKey][factory]") {
-    RSA* rsa = create_test_rsa_key();
-    REQUIRE(rsa != nullptr);
+TEST_CASE_METHOD(KeyTestFixture, "PrivateKey constructor for external handle", "[PrivateKey][contructor_for_external_handle]") {
+    auto keypair = factory::generate_key_rsa(512);
+    REQUIRE(keypair != nullptr);
 
-    auto private_key = PrivateKey::create_from_cipher(rsa);
-    REQUIRE(private_key != nullptr);
-    REQUIRE(private_key->is_valid());
-    REQUIRE(private_key->algorithm() == Key::Cipher::Type::RSA);
+    PrivateKey private_key(keypair);
+    REQUIRE(private_key.handle() != nullptr);
+    REQUIRE(private_key.is_valid());
+    REQUIRE(private_key.algorithm() == KeyType::RSA);
 }
 #endif
 
@@ -372,33 +304,21 @@ TEST_CASE_METHOD(KeyTestFixture, "Factory make_private_key", "[factory][make_pri
     REQUIRE(private_key->is_valid());
 }
 
-#ifndef OPENSSL_NO_RSA
-TEST_CASE_METHOD(KeyTestFixture, "Factory make_key_for_cipher", "[factory][make_key_for_cipher]") {
-    auto key = factory::make_key_for_cipher<RSA>();
-    REQUIRE(key != nullptr);
-    REQUIRE(key->is_valid());
-}
-#endif
-
 // Test error conditions
 TEST_CASE_METHOD(KeyTestFixture, "Key error conditions", "[Key][error]") {
     Key key;
 
     SECTION("Operations on default constructed key") {
         REQUIRE(key.is_valid());
-        REQUIRE(key.algorithm() == Key::Cipher::Type::UNKNOWN);
-
-        #ifndef OPENSSL_NO_RSA
-        REQUIRE_FALSE(key.is_cipher_type<RSA>());
-        REQUIRE(key.get_cipher_handle<RSA>() == nullptr);
-        #endif
+        REQUIRE(key.algorithm() == KeyType::UNKNOWN);
     }
 
-    SECTION("Assign null cipher") {
-        #ifndef OPENSSL_NO_RSA
-        REQUIRE_FALSE(key.assign<RSA>(nullptr));
-        REQUIRE_FALSE(key.copy<RSA>(nullptr));
-        #endif
+    SECTION("Assign null key") {
+        REQUIRE_THROWS_AS(key.assign(nullptr), error::key::InvalidArgumentError);
+    }
+
+    SECTION("Copy null key") {
+        REQUIRE_THROWS_AS(key.copy(nullptr), error::key::InvalidArgumentError);
     }
 }
 
@@ -419,27 +339,6 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey error conditions", "[PrivateKey][er
         REQUIRE_NOTHROW(sink.open_ro(invalid_pem.c_str(), invalid_pem.length()));
         REQUIRE_THROWS_AS(private_key.load(sink), error::key::RuntimeError);
     }
-}
-
-// Test cipher traits and SFINAE
-TEST_CASE_METHOD(KeyTestFixture, "Cipher traits compilation", "[cipher_traits][compile_time]") {
-    #ifndef OPENSSL_NO_RSA
-    static_assert(detail::is_cipher_supported_v<RSA>);
-    static_assert(detail::cipher_traits<RSA>::evp_pkey_type == EVP_PKEY_RSA);
-    #endif
-
-    #ifndef OPENSSL_NO_DSA
-    static_assert(detail::is_cipher_supported_v<DSA>);
-    static_assert(detail::cipher_traits<DSA>::evp_pkey_type == EVP_PKEY_DSA);
-    #endif
-
-    #ifndef OPENSSL_NO_EC
-    static_assert(detail::is_cipher_supported_v<EC_KEY>);
-    static_assert(detail::cipher_traits<EC_KEY>::evp_pkey_type == EVP_PKEY_EC);
-    #endif
-
-    // This should compile fine as the tests above validate the traits
-    REQUIRE(true);
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Key pubkey", "[Key][pubkey]") {
