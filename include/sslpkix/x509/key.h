@@ -9,6 +9,7 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/opensslv.h>
+#include "sslpkix/bio_wrapper.h"
 #include "sslpkix/iosink.h"
 #include "sslpkix/exception.h"
 
@@ -493,7 +494,7 @@ public:
             throw error::key::InvalidArgumentError("Cannot copy from a null key");
         }
 
-        auto mem = std::unique_ptr<BIO, decltype(&BIO_free)>(BIO_new(BIO_s_mem()), BIO_free);
+        auto mem = BioWrapper(BIO_new(BIO_s_mem()));
         if (!mem) {
             throw error::key::BadAllocError("Failed to create BIO for key serialization");
         }
@@ -520,9 +521,8 @@ public:
     }
 
     virtual int print(FILE* stream = stdout) const noexcept {
-        BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
-        int ret = print_ex(bio_out);
-        BIO_free(bio_out);
+        auto bio_out = BioWrapper(BIO_new_fp(stream, BIO_NOCLOSE));
+        int ret = print_ex(bio_out.get());
         return ret;
     }
 

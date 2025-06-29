@@ -5,6 +5,7 @@
 #include <openssl/bio.h>
 #include <unordered_set>
 #include <unordered_map>
+#include "sslpkix/bio_wrapper.h"
 #include "sslpkix/x509/cert_name.h"
 
 using namespace sslpkix;
@@ -295,28 +296,23 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName BIO operations", "
 	auto name = createTestName();
 
 	SECTION("Print to BIO") {
-		BIO* bio = BIO_new(BIO_s_mem());
+		auto bio = BioWrapper(BIO_new(BIO_s_mem()));
 		REQUIRE(bio != nullptr);
 
-		REQUIRE(name.print_ex(bio));
+		REQUIRE(name.print_ex(bio.get()));
 
 		char* data;
-		long length = BIO_get_mem_data(bio, &data);
+		long length = BIO_get_mem_data(bio.get(), &data);
 		REQUIRE(length > 0);
 
 		std::string output(data, length);
 		REQUIRE(output.find("Test User") != std::string::npos);
-
-		BIO_free(bio);
 	}
 
 	SECTION("Legacy one_line_print method") {
-		BIO* bio = BIO_new(BIO_s_mem());
+		auto bio = BioWrapper(BIO_new(BIO_s_mem()));
 		REQUIRE(bio != nullptr);
-
-		REQUIRE(name.one_line_print(bio, 4)); // With indent
-
-		BIO_free(bio);
+		REQUIRE(name.one_line_print(bio.get(), 4)); // With indent
 	}
 
 	SECTION("Print with null BIO fails") {
@@ -422,7 +418,8 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName error handling", "
 		REQUIRE(empty_name.get_entry_value(NID_commonName).empty());
 		REQUIRE(empty_name.get_entry_value(NID_commonName, nullptr, 0) == -1);
 		REQUIRE(empty_name.to_string().empty());
-		REQUIRE(empty_name.print_ex(BIO_new(BIO_s_mem())));
+		auto mem_bio = BioWrapper(BIO_new(BIO_s_mem()));
+		REQUIRE(empty_name.print_ex(mem_bio.get()));
 	}
 
 	SECTION("Invalid entry operations") {

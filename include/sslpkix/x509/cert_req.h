@@ -5,6 +5,7 @@
 #include <functional>
 #include <stdexcept>
 #include <openssl/x509v3.h>
+#include "sslpkix/bio_wrapper.h"
 #include "sslpkix/x509/digest.h"
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
@@ -316,9 +317,8 @@ public:
     }
 
     bool print(FILE* stream = stdout) const noexcept {
-        BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
-        const auto ret = print_ex(bio_out);
-        BIO_free(bio_out);
+        auto bio_out = BioWrapper(BIO_new_fp(stream, BIO_NOCLOSE));
+        const auto ret = print_ex(bio_out.get());
         return ret;
     }
 

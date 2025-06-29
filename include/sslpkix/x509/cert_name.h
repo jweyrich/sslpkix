@@ -7,6 +7,7 @@
 #include <cassert>
 #include <openssl/x509v3.h>
 #include <openssl/bio.h>
+#include "sslpkix/bio_wrapper.h"
 #include "sslpkix/exception.h"
 
 namespace sslpkix {
@@ -260,9 +261,8 @@ public:
     }
 
     bool print(FILE* stream = stdout) const noexcept {
-        BIO *bio_out = BIO_new_fp(stream, BIO_NOCLOSE);
-        const auto ret = print_ex(bio_out);
-        BIO_free(bio_out);
+        auto bio_out = BioWrapper(BIO_new_fp(stream, BIO_NOCLOSE));
+        const auto ret = print_ex(bio_out.get());
         return ret;
     }
 
