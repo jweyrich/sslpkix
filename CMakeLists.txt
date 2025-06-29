@@ -81,8 +81,8 @@ set(CMAKE_CXX_STANDARD 17)
 # Build type specific compile options - cross-platform
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     # GCC and Clang flags
-    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -DDEBUG -fsanitize=address")
-    set(CMAKE_C_FLAGS_DEBUG "-O0 -g3 -DDEBUG -fsanitize=address")
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -DDEBUG -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -g3 -DDEBUG -fsanitize=address -fno-omit-frame-pointer")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
     set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
