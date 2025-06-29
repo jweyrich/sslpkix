@@ -25,11 +25,10 @@ std::unique_ptr<Key> Key::pubkey() const {
     }
 
     // Build provider-native BN parameters directly:
-    auto params_builder_ptr = OSSL_PARAM_BLD_new();
-    if (!params_builder_ptr) {
+    auto params_builder = std::unique_ptr<OSSL_PARAM_BLD, decltype(&OSSL_PARAM_BLD_free)>(OSSL_PARAM_BLD_new(), OSSL_PARAM_BLD_free);
+    if (!params_builder) {
         throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_new");
     }
-    auto params_builder = std::unique_ptr<OSSL_PARAM_BLD, decltype(&OSSL_PARAM_BLD_free)>(params_builder_ptr, OSSL_PARAM_BLD_free);
 
     auto params = std::unique_ptr<OSSL_PARAM, decltype(&OSSL_PARAM_free)>(nullptr, OSSL_PARAM_free);
 
@@ -42,13 +41,13 @@ std::unique_ptr<Key> Key::pubkey() const {
             throw error::key::RuntimeError("Failed on EVP_PKEY_get_bn_param");
         }
 
-        if (!OSSL_PARAM_BLD_push_BN(params_builder_ptr, OSSL_PKEY_PARAM_RSA_N, n) ||
-            !OSSL_PARAM_BLD_push_BN(params_builder_ptr, OSSL_PKEY_PARAM_RSA_E, e))
+        if (!OSSL_PARAM_BLD_push_BN(params_builder.get(), OSSL_PKEY_PARAM_RSA_N, n) ||
+            !OSSL_PARAM_BLD_push_BN(params_builder.get(), OSSL_PKEY_PARAM_RSA_E, e))
         {
             throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_*");
         }
 
-        params = build_params(params_builder_ptr);
+        params = build_params(params_builder.get());
 
         BN_free(n);
         BN_free(e);
@@ -71,13 +70,13 @@ std::unique_ptr<Key> Key::pubkey() const {
             throw error::key::RuntimeError("Failed on EVP_PKEY_get_octet_string_param (data)");
         }
 
-        if (!OSSL_PARAM_BLD_push_utf8_string(params_builder_ptr, OSSL_PKEY_PARAM_GROUP_NAME, curve_name, curve_len) ||
-            !OSSL_PARAM_BLD_push_octet_string(params_builder_ptr, OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len))
+        if (!OSSL_PARAM_BLD_push_utf8_string(params_builder.get(), OSSL_PKEY_PARAM_GROUP_NAME, curve_name, curve_len) ||
+            !OSSL_PARAM_BLD_push_octet_string(params_builder.get(), OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len))
         {
             throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_*");
         }
 
-        params = build_params(params_builder_ptr);
+        params = build_params(params_builder.get());
     } else if (strcmp(key_type_name, "ED25519") == 0 || strcmp(key_type_name, "ED448") == 0) {
         size_t pubkey_len = 0;
         if (EVP_PKEY_get_octet_string_param(_handle.get(), OSSL_PKEY_PARAM_PUB_KEY, nullptr, 0, &pubkey_len) != 1) {
@@ -89,11 +88,11 @@ std::unique_ptr<Key> Key::pubkey() const {
             throw error::key::RuntimeError("Failed on EVP_PKEY_get_octet_string_param (data)");
         }
 
-        if (!OSSL_PARAM_BLD_push_octet_string(params_builder_ptr, OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len)) {
+        if (!OSSL_PARAM_BLD_push_octet_string(params_builder.get(), OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len)) {
             throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_*");
         }
 
-        params = build_params(params_builder_ptr);
+        params = build_params(params_builder.get());
     } else {
         // Unsupported or custom key type
         return nullptr;
