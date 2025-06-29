@@ -22,8 +22,11 @@ IoSink& operator<<(IoSink& sink, const std::string& str) {
 	else if (ret == -2)
 		throw error::iosink::IosBaseFailure("BIO_write is not implemented for this BIO");
 
-	// TODO: Need to check result? 1=success, 0 or -1=failure
 	ret = BIO_flush(sink.handle());
+	// BIO_flush returns 1 on success, 0 on failure, -1 on EOF
+	if (ret != 1) {
+		throw error::iosink::IosBaseFailure("BIO_flush failed");
+	}
 
 	return sink;
 }
@@ -87,8 +90,11 @@ std::istream& operator>>(std::istream& stream, IoSink& sink) {
 			throw error::iosink::IosBaseFailure("BIO_write is not implemented for this BIO");
 	}
 
-	// TODO: Need to check result? 1=success, 0 or -1=failure
 	ret = BIO_flush(sink.handle());
+	// BIO_flush returns 1 on success, 0 on failure, -1 on EOF
+	if (ret != 1) {
+		throw error::iosink::IosBaseFailure("BIO_flush failed");
+	}
 
 	return stream;
 }
