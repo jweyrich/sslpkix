@@ -30,6 +30,22 @@ cmake --build build --target test-run
 cd build && ctest --verbose
 ```
 
+# Documentation
+
+API documentation is generated using Doxygen. To generate the documentation:
+
+```bash
+# Install Doxygen (if not already installed)
+# On macOS: brew install doxygen
+# On Ubuntu/Debian: sudo apt-get install doxygen
+# On Windows: Download from https://www.doxygen.nl/
+
+# Generate documentation
+cmake --build build --target docs
+```
+
+The generated documentation will be available in `build/docs/html/index.html`.
+
 # Acknowledgments
 
 This product includes software developed by the OpenSSL Project
