@@ -69,7 +69,7 @@ public:
 
     // Copy constructor
     Certificate(const Certificate& other) {
-        if (!other.is_valid()) {
+        if (!other.has_handle()) {
             throw error::cert::InvalidArgumentError("Certificate handle cannot be null");
         }
         if (!other.has_required_fields()) {
@@ -109,18 +109,18 @@ public:
     }
 
     // Get raw handle (non-const for OpenSSL functions that need it)
-    handle_type* handle() noexcept {
+    inline handle_type* handle() noexcept {
         return _handle.get();
     }
 
     // Check if certificate is valid/loaded
-    bool is_valid() const noexcept {
+    inline bool has_handle() const noexcept {
         return _handle.get() != nullptr;
     }
 
     // Explicit bool conversion
     explicit operator bool() const noexcept {
-        return is_valid();
+        return has_handle();
     }
 
     bool has_required_fields() const noexcept {
@@ -285,7 +285,7 @@ public:
         if (!_handle) {
             throw error::cert::LogicError("Certificate handle is null");
         }
-        if (!key.is_valid()) {
+        if (!key.has_handle()) {
             throw error::cert::InvalidArgumentError("Invalid key");
         }
 
@@ -327,7 +327,7 @@ public:
         if (!_handle) {
             throw error::cert::LogicError("Certificate handle is null");
         }
-        if (!key.is_valid()) {
+        if (!key.has_handle()) {
             throw error::cert::InvalidArgumentError("Invalid key");
         }
         if (!key.can_sign()) {
@@ -409,7 +409,7 @@ public:
         if (!_handle) {
             throw error::cert::LogicError("Certificate handle is null");
         }
-        if (!subject.is_valid()) {
+        if (!subject.has_handle()) {
             throw error::cert::InvalidArgumentError("Invalid subject");
         }
 
@@ -448,7 +448,7 @@ public:
         if (!_handle) {
             throw error::cert::LogicError("Certificate handle is null");
         }
-        if (!issuer.is_valid()) {
+        if (!issuer.has_handle()) {
             throw error::cert::InvalidArgumentError("Invalid issuer");
         }
 
@@ -487,7 +487,7 @@ public:
         if (!_handle) {
             throw error::cert::LogicError("Certificate handle is null");
         }
-        if (!key.is_valid()) {
+        if (!key.has_handle()) {
             throw error::cert::InvalidArgumentError("Invalid key");
         }
         return X509_verify(_handle.get(), key.handle()) == 1;
@@ -501,7 +501,7 @@ public:
         if (!_handle) {
             throw error::cert::LogicError("Certificate handle is null");
         }
-        if (!key.is_valid()) {
+        if (!key.has_handle()) {
             throw error::cert::InvalidArgumentError("Invalid key");
         }
 

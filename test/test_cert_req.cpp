@@ -153,8 +153,6 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Public Key O
     std::unique_ptr<Key> public_key = private_key->pubkey();
 
     SECTION("Set and get public key") {
-        REQUIRE(req.is_valid());
-        REQUIRE(public_key->is_valid());
         REQUIRE_NOTHROW(req.set_pubkey(*public_key));
         REQUIRE_NOTHROW(req.pubkey());
 

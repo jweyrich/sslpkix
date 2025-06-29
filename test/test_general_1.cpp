@@ -94,7 +94,6 @@ TEST_CASE_METHOD(TestFixture, "Certificate creation", "[certificate][creation]")
 {
 	auto test = make_test_objects();
 
-	REQUIRE(test.cert->is_valid());
 	REQUIRE(test.cert->is_signed());
 	REQUIRE(test.cert->has_required_fields());
 	REQUIRE(test.cert->matches_private_key(*test.public_key));

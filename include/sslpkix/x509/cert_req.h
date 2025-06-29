@@ -117,18 +117,17 @@ public:
     ~CertificateRequest() = default;
 
     // Get raw handle (for C API compatibility)
-    handle_type* handle() const noexcept {
+    inline handle_type* handle() const noexcept {
         return _handle.get();
     }
 
-    // Check if certificate request is valid
-    bool is_valid() const noexcept {
+    inline bool has_handle() const noexcept {
         return _handle.get() != nullptr;
     }
 
     // Explicit bool conversion
     explicit operator bool() const noexcept {
-        return is_valid();
+        return has_handle();
     }
 
     bool set_version(Version version) {
@@ -163,7 +162,7 @@ public:
         if (!_handle) {
             throw error::cert_req::LogicError("Certificate request handle is null");
         }
-        if (!key.is_valid()) {
+        if (!key.has_handle()) {
             throw error::cert_req::InvalidArgumentError("Invalid key");
         }
 
@@ -207,7 +206,7 @@ public:
         if (!_handle) {
             throw error::cert_req::LogicError("Certificate request handle is null");
         }
-        if (!key.is_valid()) {
+        if (!key.has_handle()) {
             throw error::cert_req::InvalidArgumentError("Invalid key");
         }
         if (!key.can_sign()) {
@@ -280,7 +279,7 @@ public:
         if (!_handle) {
             throw error::cert_req::LogicError("Certificate request handle is null");
         }
-        if (!key.is_valid()) {
+        if (!key.has_handle()) {
             throw error::cert_req::InvalidArgumentError("Invalid key");
         }
         return X509_REQ_verify(_handle.get(), key.handle()) == 1;
@@ -294,7 +293,7 @@ public:
         if (!_handle) {
             throw error::cert_req::LogicError("Certificate request handle is null");
         }
-        if (!key.is_valid()) {
+        if (!key.has_handle()) {
             throw error::cert_req::InvalidArgumentError("Invalid key");
         }
 

@@ -74,7 +74,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Construction", "[certifica
 
     SECTION("Default constructor creates valid certificate") {
         Certificate cert;
-        REQUIRE(cert.is_valid());
         REQUIRE(cert.handle() != nullptr);
         REQUIRE(static_cast<bool>(cert));
     }
@@ -84,7 +83,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Construction", "[certifica
         REQUIRE(x509 != nullptr);
 
         Certificate cert(x509); // Ownership is transferred to Certificate
-        REQUIRE(cert.is_valid());
         REQUIRE(cert.handle() == x509);
     }
 
@@ -113,7 +111,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Copy and Move Semantics", 
         original.sign(*test_private_key, Digest::TYPE_SHA256);
 
         Certificate copy(original);
-        REQUIRE(copy.is_valid());
         REQUIRE(copy.handle() != original.handle()); // Different handles
         REQUIRE(copy.version() == original.version());
         REQUIRE(copy.serial() == original.serial());
@@ -133,7 +130,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Copy and Move Semantics", 
         Certificate copy;
         copy = original;
 
-        REQUIRE(copy.is_valid());
         REQUIRE(copy.version() == original.version());
         REQUIRE(copy.serial() == original.serial());
     }
@@ -160,7 +156,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Copy and Move Semantics", 
 #pragma clang diagnostic pop
 #endif
 
-        REQUIRE(cert.is_valid());
         REQUIRE(cert.version() == Certificate::Version::v3);
         REQUIRE(cert.serial() == 99999);
     }
@@ -171,7 +166,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Copy and Move Semantics", 
         X509* original_handle = original.handle();
 
         Certificate moved(std::move(original));
-        REQUIRE(moved.is_valid());
         REQUIRE(moved.handle() == original_handle);
         REQUIRE(moved.version() == Certificate::Version::v3);
     }
@@ -184,7 +178,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Copy and Move Semantics", 
         Certificate moved;
         moved = std::move(original);
 
-        REQUIRE(moved.is_valid());
         REQUIRE(moved.handle() == original_handle);
         REQUIRE(moved.version() == Certificate::Version::v3);
     }
@@ -273,7 +266,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Public Key", "[certificate
         REQUIRE_NOTHROW(cert.set_pubkey(*test_public_key));
 
         auto retrieved_key = cert.pubkey();
-        REQUIRE(retrieved_key.is_valid());
         REQUIRE(retrieved_key.algorithm() == test_public_key->algorithm());
     }
 
@@ -298,7 +290,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Subject and Issuer", "[cer
         cert.set_subject(*test_subject);
 
         auto retrieved_subject = cert.subject();
-        REQUIRE(retrieved_subject.is_valid());
         REQUIRE(retrieved_subject == *test_subject);
         REQUIRE(retrieved_subject.common_name() == "test.example.com");
     }
@@ -308,7 +299,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Subject and Issuer", "[cer
         cert.set_issuer(*test_issuer);
 
         auto retrieved_issuer = cert.issuer();
-        REQUIRE(retrieved_issuer.is_valid());
         REQUIRE(retrieved_issuer == *test_issuer);
         REQUIRE(retrieved_issuer.common_name() == "ca.example.com");
     }
@@ -530,7 +520,6 @@ TEST_CASE_METHOD(CertificateTestFixture, "Complete Certificate Creation", "[cert
         cert.sign(*test_private_key, Digest::TYPE_SHA256);
 
         // Verify the certificate
-        REQUIRE(cert.is_valid());
         REQUIRE(cert.version() == Certificate::Version::v3);
         REQUIRE(cert.serial() == 1);
         REQUIRE(cert.verify_signature(*test_public_key));

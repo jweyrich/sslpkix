@@ -393,12 +393,11 @@ public:
     }
 
     // Get raw handle (for C API compatibility)
-    detail::handle_type* handle() const noexcept {
+    inline detail::handle_type* handle() const noexcept {
         return _handle.get();
     }
 
-    // Check if key is valid
-    bool is_valid() const noexcept {
+    inline bool has_handle() const noexcept {
         return _handle.get() != nullptr;
     }
 
@@ -406,7 +405,7 @@ public:
      * @brief Returns true if the key has a public key.
      */
     bool has_public_key() const noexcept {
-        if (!is_valid()) {
+        if (!has_handle()) {
             return false;
         }
         return detail::has_public_key(_handle.get());
@@ -416,7 +415,7 @@ public:
      * @brief Returns true if the key has a private key.
      */
     bool has_private_key() const noexcept {
-        if (!is_valid()) {
+        if (!has_handle()) {
             return false;
         }
         return detail::has_private_key(_handle.get());

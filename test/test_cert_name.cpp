@@ -80,7 +80,7 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName handle constructor
 		CertificateName null_name(nullptr);
 		REQUIRE_FALSE(null_name);
 		REQUIRE(null_name.handle() == nullptr);
-		REQUIRE_FALSE(null_name.is_valid());
+		REQUIRE_FALSE(null_name.has_handle());
 		REQUIRE(null_name.entry_count() == 0);
 	}
 }

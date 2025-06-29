@@ -93,22 +93,21 @@ public:
     CertificateName& operator=(CertificateName&&) noexcept = default;
 
     // Legacy method name for compatibility
-    const X509_NAME* handle() const noexcept {
+    inline const X509_NAME* handle() const noexcept {
         return handle_.get();
     }
 
-    X509_NAME* handle() noexcept {
+    inline X509_NAME* handle() noexcept {
         return handle_.get();
     }
 
-    // Check if certificate name is valid
-    bool is_valid() const noexcept {
+    inline bool has_handle() const noexcept {
         return handle_.get() != nullptr;
     }
 
     // Explicit bool conversion
     explicit operator bool() const noexcept {
-        return is_valid();
+        return has_handle();
     }
 
     /**

@@ -79,11 +79,11 @@ public:
 
     ~CertificateStore() = default;
 
-    handle_type* handle() const noexcept {
+    inline handle_type* handle() const noexcept {
         return _handle.get();
     }
 
-    bool is_valid() const noexcept {
+    inline bool has_handle() const noexcept {
         return _handle.get() != nullptr;
     }
 
@@ -166,11 +166,11 @@ public:
 
     ~CertificateStoreContext() = default;
 
-    handle_type* handle() const noexcept {
+    inline handle_type* handle() const noexcept {
         return _handle.get();
     }
 
-    bool is_valid() const noexcept {
+    inline bool has_handle() const noexcept {
         return _handle.get() != nullptr;
     }
 
@@ -200,7 +200,7 @@ public:
         const auto& store = _store_ctx.store();
         const auto ctx = _store_ctx.handle();
 
-        if (!store.is_valid() || !ctx) {
+        if (!store.has_handle() || !ctx) {
             throw error::cert_verifier::InvalidArgumentError("Invalid store or context");
         }
 

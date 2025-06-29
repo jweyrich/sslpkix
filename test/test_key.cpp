@@ -35,14 +35,14 @@ struct KeyTestFixture {
 // Test Key class basic functionality
 TEST_CASE_METHOD(KeyTestFixture, "Key default constructor", "[Key][constructor]") {
     Key key;
-    REQUIRE(key.is_valid());
+    REQUIRE(key.has_handle());
     REQUIRE(key.handle() != nullptr);
     REQUIRE(key.algorithm() == KeyType::UNKNOWN);
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Key create method", "[Key][create]") {
     Key key;
-    REQUIRE(key.is_valid());
+    REQUIRE(key.has_handle());
     REQUIRE(key.handle() != nullptr);
     REQUIRE(key.algorithm() == KeyType::UNKNOWN); // Key is not generated yet
 }
@@ -52,10 +52,10 @@ TEST_CASE_METHOD(KeyTestFixture, "Key move constructor", "[Key][move]") {
     EVP_PKEY* original_handle = original.handle();
 
     Key moved(std::move(original));
-    REQUIRE(moved.is_valid());
+    REQUIRE(moved.has_handle());
     REQUIRE(moved.handle() == original_handle);
     // Original should be invalid after move (shared_ptr was moved)
-    REQUIRE_FALSE(original.is_valid());
+    REQUIRE_FALSE(original.has_handle());
     REQUIRE(original.handle() == nullptr);
 }
 
@@ -64,9 +64,9 @@ TEST_CASE_METHOD(KeyTestFixture, "Key assignment operators", "[Key][assignment]"
 
     key2 = std::move(key1); // Move assignment
     REQUIRE(key1.handle() == nullptr);
-    REQUIRE_FALSE(key1.is_valid());
+    REQUIRE_FALSE(key1.has_handle());
     REQUIRE(key2.handle() != nullptr);
-    REQUIRE(key2.is_valid());
+    REQUIRE(key2.has_handle());
     REQUIRE(key2 != key1);
 }
 
@@ -219,8 +219,8 @@ TEST_CASE_METHOD(KeyTestFixture, "Key comparison operators", "[Key][comparison]"
         REQUIRE(new_key3 != key1);
         REQUIRE_FALSE(new_key3 == key1);
         // While the new key is valid, the original key is invalid
-        REQUIRE(new_key3.is_valid());
-        REQUIRE_FALSE(key1.is_valid());
+        REQUIRE(new_key3.has_handle());
+        REQUIRE_FALSE(key1.has_handle());
         // The new key should have a handle, the original key should not
         REQUIRE(new_key3.handle() != nullptr);
         REQUIRE(key1.handle() == nullptr);
@@ -234,7 +234,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key external handle operations", "[Key][extern
         EVP_PKEY* external_key = nullptr;
 
         Key new_key(external_key);
-        REQUIRE_FALSE(new_key.is_valid());
+        REQUIRE(new_key.handle() == nullptr);
         REQUIRE(new_key.handle() == external_key);
     }
 
@@ -243,7 +243,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key external handle operations", "[Key][extern
         REQUIRE(external_key != nullptr);
 
         Key new_key(external_key);
-        REQUIRE(new_key.is_valid());
+        REQUIRE(new_key.handle() != nullptr);
         REQUIRE(new_key.handle() == external_key);
 
         EVP_PKEY_free(external_key);
@@ -253,7 +253,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key external handle operations", "[Key][extern
 // Test PrivateKey class
 TEST_CASE_METHOD(KeyTestFixture, "PrivateKey default constructor", "[PrivateKey][constructor]") {
     PrivateKey private_key;
-    REQUIRE(private_key.is_valid());
+    REQUIRE(private_key.has_handle());
     REQUIRE(private_key.handle() != nullptr);
 }
 
@@ -266,7 +266,6 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey load from PEM", "[PrivateKey][load]
 
     REQUIRE_NOTHROW(sink.open_ro(pem_data.c_str(), pem_data.length()));
     REQUIRE_NOTHROW(private_key.load(sink));
-    REQUIRE(private_key.is_valid());
     REQUIRE(private_key.algorithm() == KeyType::RSA);
 }
 
@@ -280,7 +279,6 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey save to PEM", "[PrivateKey][save]")
 
     REQUIRE_NOTHROW(load_sink.open_ro(pem_data.c_str(), pem_data.length()));
     REQUIRE_NOTHROW(private_key.load(load_sink));
-    REQUIRE(private_key.is_valid());
     REQUIRE(private_key.algorithm() == KeyType::RSA);
 
     // Now save it
@@ -299,7 +297,7 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey constructor for external handle", "
 
     PrivateKey private_key(keypair);
     REQUIRE(private_key.handle() != nullptr);
-    REQUIRE(private_key.is_valid());
+    REQUIRE(private_key.has_handle());
     REQUIRE(private_key.algorithm() == KeyType::RSA);
 }
 #endif
@@ -308,13 +306,13 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey constructor for external handle", "
 TEST_CASE_METHOD(KeyTestFixture, "Factory make_key", "[factory][make_key]") {
     auto key = factory::make_key();
     REQUIRE(key != nullptr);
-    REQUIRE(key->is_valid());
+    REQUIRE(key->has_handle());
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Factory make_private_key", "[factory][make_private_key]") {
     auto private_key = factory::make_private_key();
     REQUIRE(private_key != nullptr);
-    REQUIRE(private_key->is_valid());
+    REQUIRE(private_key->has_handle());
 }
 
 // Test error conditions
@@ -322,7 +320,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key error conditions", "[Key][error]") {
     Key key;
 
     SECTION("Operations on default constructed key") {
-        REQUIRE(key.is_valid());
+        REQUIRE(key.has_handle());
         REQUIRE(key.algorithm() == KeyType::UNKNOWN);
     }
 
