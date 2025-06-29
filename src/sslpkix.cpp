@@ -12,28 +12,11 @@ namespace sslpkix {
 
 static OSSL_PROVIDER* g_provider = nullptr;
 
-bool startup(void) {
-	uint64_t opts = 0
-		| OPENSSL_INIT_ADD_ALL_CIPHERS
-		| OPENSSL_INIT_ADD_ALL_DIGESTS
-		| OPENSSL_INIT_LOAD_CONFIG
-		| OPENSSL_INIT_ENGINE_OPENSSL
-		| OPENSSL_INIT_ENGINE_RDRAND
-		;
-	int init_result = OPENSSL_init_crypto(opts, NULL);
-	if (init_result != 1) {
-		std::cerr << "Error initializing OpenSSL: " << ERR_get_error() << std::endl;
-		return false;
-	}
-	g_provider = OSSL_PROVIDER_load(nullptr, "default");
-	if (!g_provider) {
-		std::cerr << "Error loading OpenSSL provider: " << ERR_get_error() << std::endl;
-		return false;
-	}
-	return true;
-}
-
-void shutdown(void) {
+/**
+ * @brief Cleanup the SSLPKIX library.
+ * @note This function is called automatically when the program exits.
+ */
+void cleanup(void) {
 	// TODO(jweyrich): Figure out if we're missing a cleanup to avoid the curent memory leaks.
 	// Test using: valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all -s --num-callers=40 ./run_tests
 	if (g_provider) {
@@ -43,7 +26,31 @@ void shutdown(void) {
 	OPENSSL_cleanup();
 }
 
-bool seed_prng(void) {
+
+void initialize(void) {
+	uint64_t opts = 0
+		| OPENSSL_INIT_ADD_ALL_CIPHERS
+		| OPENSSL_INIT_ADD_ALL_DIGESTS
+		| OPENSSL_INIT_LOAD_CONFIG
+		| OPENSSL_INIT_ENGINE_OPENSSL
+		| OPENSSL_INIT_ENGINE_RDRAND
+		;
+	int init_result = OPENSSL_init_crypto(opts, NULL);
+	if (init_result != 1) {
+		throw std::runtime_error("Error initializing OpenSSL: " + std::to_string(ERR_get_error()));
+	}
+	g_provider = OSSL_PROVIDER_load(nullptr, "default");
+	if (!g_provider) {
+		throw std::runtime_error("Error loading OpenSSL provider: " + std::to_string(ERR_get_error()));
+	}
+
+	int atexit_result = atexit(cleanup);
+	if (atexit_result != 0) {
+		throw std::runtime_error("Error registering cleanup function: " + std::to_string(atexit_result));
+	}
+}
+
+void seed_prng(void) {
 #if defined(_WIN32)
 	char buffer[1024];
 	// RtlGenRandom is provided by ADVAPI32.DLL on Windows >= XP.
@@ -60,23 +67,19 @@ bool seed_prng(void) {
 #endif
 	int ok = RAND_status();
 	if (ok != 1) {
-		std::cerr << "Error seeding PRNG: not enough data" << std::endl;
-		return false;
+		throw std::runtime_error("Error seeding PRNG: not enough data");
 	}
-	return true;
 }
 
-bool add_custom_object(const char *oid, const char *sn, const char *ln, int *out_nid) {
-	if (out_nid == NULL)
-		return false;
+int add_custom_object(const char *oid, const char *sn, const char *ln, int alias_nid) {
 	int nid = OBJ_create(oid, sn, ln);
 	if (nid == NID_undef) {
-		std::cerr << "Error creating object: " << oid << ", " << sn << ", " << ln << std::endl;
-		return false;
+		throw std::runtime_error("Error creating object: " + std::string(oid) + ", " + std::string(sn) + ", " + std::string(ln));
 	}
-	X509V3_EXT_add_alias(nid, NID_netscape_comment);
-	*out_nid = nid;
-	return true;
+	if (alias_nid != NID_undef) {
+		X509V3_EXT_add_alias(nid, alias_nid);
+	}
+	return nid;
 }
 
 } // namespace sslpkix

@@ -5,22 +5,11 @@
 
 struct TestRunnerSetup {
     TestRunnerSetup() {
-        bool success = sslpkix::startup();
-        if (!success) {
-            std::cerr << "ERROR: Failed to initialize SSLPKIX" << std::endl;
-            exit(EXIT_FAILURE);
-        }
-
-        success = sslpkix::seed_prng();
-        if (!success) {
-            std::cerr << "ERROR: Failed to seed the PRNG" << std::endl;
-            exit(EXIT_FAILURE);
-        }
+        sslpkix::initialize();
+        sslpkix::seed_prng();
     }
 
-    ~TestRunnerSetup() {
-        sslpkix::shutdown();
-    }
+    ~TestRunnerSetup() = default;
 };
 
 int main(int argc, char* argv[]) {
