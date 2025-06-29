@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <openssl/pem.h>
+#include <openssl/evp.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <sstream>
@@ -85,7 +86,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key create method", "[Key][create]") {
     Key key;
     REQUIRE(key.is_valid());
     REQUIRE(key.handle() != nullptr);
-    REQUIRE(key.algorithm() == KeyType::UNKNOWN); // No cipher assigned yet
+    REQUIRE(key.algorithm() == KeyType::UNKNOWN); // Key is not generated yet
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Key move constructor", "[Key][move]") {
@@ -115,25 +116,70 @@ TEST_CASE_METHOD(KeyTestFixture, "Key assignment", "[Key][assignment]") {
     auto keypair = factory::generate_key_rsa(512);
     REQUIRE(keypair != nullptr);
 
-    Key key;
+    PrivateKey private_key(keypair);
+    Key new_key;
 
-    SECTION("Assign key") {
-        REQUIRE_NOTHROW(key.assign(keypair));
-        REQUIRE(key.is_valid());
-        REQUIRE(key.handle() != nullptr);
-        REQUIRE(key.algorithm() == KeyType::RSA);
-    }
-
-    SECTION("Copy key") {
-        REQUIRE_NOTHROW(key.copy(keypair));
-        REQUIRE(key.is_valid());
-        REQUIRE(key.handle() != nullptr);
-        REQUIRE(key.algorithm() == KeyType::RSA);
-    }
+    REQUIRE_NOTHROW(new_key.assign(keypair));
+    REQUIRE(new_key.algorithm() == KeyType::RSA);
+    REQUIRE(new_key == private_key);
+    REQUIRE(new_key.has_public_key());
+    REQUIRE(new_key.has_private_key());
 }
 
 #ifndef OPENSSL_NO_RSA
-TEST_CASE_METHOD(KeyTestFixture, "Key RSA cipher operations", "[Key][RSA]") {
+TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
+    auto keypair = factory::generate_key_rsa(512);
+    REQUIRE(keypair != nullptr);
+
+    PrivateKey private_key(keypair);
+    auto pubkey_only = private_key.pubkey();
+    Key *public_key = pubkey_only.get();
+
+
+    SECTION("Assign RSA keypair") {
+        Key new_key;
+        REQUIRE_NOTHROW(new_key.assign(keypair));
+        REQUIRE(new_key.algorithm() == KeyType::RSA);
+        REQUIRE(new_key == *public_key);
+        REQUIRE(new_key == private_key);
+        REQUIRE(new_key.has_public_key());
+        REQUIRE(new_key.has_private_key());
+    }
+
+    SECTION("Copy RSA keypair") {
+        Key new_key;
+        REQUIRE_NOTHROW(new_key.copy(keypair));
+        REQUIRE(new_key.algorithm() == KeyType::RSA);
+        REQUIRE(new_key == *public_key);
+        REQUIRE(new_key == private_key);
+        REQUIRE(new_key.has_public_key());
+        REQUIRE(new_key.has_private_key());
+    }
+
+    SECTION("Assign RSA public key") {
+        Key new_key;
+        REQUIRE_NOTHROW(new_key.assign(public_key->handle()));
+        REQUIRE(new_key.algorithm() == KeyType::RSA);
+        REQUIRE(new_key == *public_key);
+        REQUIRE(new_key == private_key);
+        REQUIRE(new_key.has_public_key());
+        REQUIRE_FALSE(new_key.has_private_key());
+    }
+
+    SECTION("Copy RSA public key") {
+        Key new_key;
+        REQUIRE_NOTHROW(new_key.copy(public_key->handle()));
+        REQUIRE(new_key.algorithm() == KeyType::RSA);
+        REQUIRE(new_key == *public_key);
+        REQUIRE(new_key == private_key);
+        REQUIRE(new_key.has_public_key());
+        REQUIRE_FALSE(new_key.has_private_key());
+    }
+}
+#endif
+
+#ifndef OPENSSL_NO_RSA
+TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
     auto keypair = factory::generate_key_rsa(512);
     REQUIRE(keypair != nullptr);
 
@@ -143,8 +189,19 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA cipher operations", "[Key][RSA]") {
 }
 #endif
 
+// #ifndef OPENSSL_NO_DSA
+// TEST_CASE_METHOD(KeyTestFixture, "Key DSA operations", "[Key][DSA]") {
+//     auto keypair = factory::generate_key_dsa(2048, 256);
+//     REQUIRE(keypair != nullptr);
+//
+//     Key key;
+//     REQUIRE_NOTHROW(key.assign(keypair));
+//     REQUIRE(key.algorithm() == KeyType::DSA);
+// }
+// #endif
+
 #ifndef OPENSSL_NO_EC
-TEST_CASE_METHOD(KeyTestFixture, "Key EC cipher operations", "[Key][EC]") {
+TEST_CASE_METHOD(KeyTestFixture, "Key EC operations", "[Key][EC]") {
     auto keypair = factory::generate_key_ec(traits::EC::KeyGroup::P256);
     REQUIRE(keypair != nullptr);
 
@@ -161,23 +218,33 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
         REQUIRE(key.bit_length() == 0); // EVP_PKEY_bits returns 0 for null key
     }
 
+    #ifndef OPENSSL_NO_RSA
     SECTION("RSA key bit length") {
-        #ifndef OPENSSL_NO_RSA
         auto keypair = factory::generate_key_rsa(512);
         REQUIRE(keypair != nullptr);
         REQUIRE_NOTHROW(key.assign(keypair));
         REQUIRE(key.bit_length() == 512);
-        #endif
     }
+    #endif
 
+    // #ifndef OPENSSL_NO_DSA
+    // SECTION("DSA key bit length") {
+    //     auto keypair = factory::generate_key_dsa(2048, 256);
+    //     REQUIRE(keypair != nullptr);
+    //
+    //     REQUIRE_NOTHROW(key.assign(keypair));
+    //     REQUIRE(key.bit_length() == 512);
+    // }
+    // #endif
+
+    #ifndef OPENSSL_NO_EC
     SECTION("EC key bit length") {
-        #ifndef OPENSSL_NO_EC
         auto keypair = factory::generate_key_ec(traits::EC::KeyGroup::P256);
         REQUIRE(keypair != nullptr);
         REQUIRE_NOTHROW(key.assign(keypair));
         REQUIRE(key.bit_length() == 256);
-        #endif
     }
+    #endif
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Key comparison operators", "[Key][comparison]") {

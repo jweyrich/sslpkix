@@ -1,6 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
-#include <openssl/bn.h>
 #include <openssl/core_names.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
