@@ -3,6 +3,11 @@ project(libsslpkix VERSION 1.0.1 LANGUAGES C CXX)
 
 # Platform detection is handled by CMAKE_SYSTEM_NAME automatically
 
+# Set default build type to Debug if not specified
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug)
+endif()
+
 # Standard installation directories
 include(GNUInstallDirs)
 
@@ -70,8 +75,31 @@ endforeach()
 file(GLOB_RECURSE TEST_SOURCES "${TEST_DIR}/*.c" "${TEST_DIR}/*.cpp")
 
 # Compiler flags
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_CXX_STANDARD 17)
+
+# Build type specific compile options - cross-platform
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    # GCC and Clang flags
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -DDEBUG -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -g3 -DDEBUG -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "-Os -DNDEBUG")
+    set(CMAKE_C_FLAGS_MINSIZEREL "-Os -DNDEBUG")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    # MSVC flags
+    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /DDEBUG")
+    set(CMAKE_C_FLAGS_DEBUG "/Od /Zi /DDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Zi /DNDEBUG")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "/O2 /Zi /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "/O1 /DNDEBUG")
+    set(CMAKE_C_FLAGS_MINSIZEREL "/O1 /DNDEBUG")
+endif()
 
 # Common compile options - compiler-specific
 set(COMMON_COMPILE_OPTIONS)
@@ -80,8 +108,6 @@ set(COMMON_COMPILE_OPTIONS)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     list(APPEND COMMON_COMPILE_OPTIONS
         -pipe
-        -O0
-        -g3
         -Wall
         -Wextra
         -pedantic
@@ -97,8 +123,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 # MSVC specific options
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     list(APPEND COMMON_COMPILE_OPTIONS
-        /Od        # Equivalent to -O0 (disable optimization)
-        /Zi        # Equivalent to -g3 (debug info)
         /W4        # Equivalent to -Wall -Wextra (high warning level)
         /permissive-  # Similar to -pedantic (strict conformance)
     )
@@ -173,7 +197,6 @@ target_include_directories(${LIBNAME}
 target_compile_definitions(${LIBNAME}
     PRIVATE
         SSLPKIX_LIBRARY
-        DEBUG
 )
 
 # Compile options
@@ -191,10 +214,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_target_properties(${LIBNAME} PROPERTIES
         LINK_FLAGS "-Wl,-soname,${LIBNAME}.so.${PROJECT_VERSION_MAJOR}"
     )
+    # Add AddressSanitizer linker flags for debug builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set_target_properties(${LIBNAME} PROPERTIES
+            LINK_FLAGS "${CMAKE_LINK_FLAGS} -fsanitize=address"
+        )
+    endif()
 elseif(APPLE)
     set_target_properties(${LIBNAME} PROPERTIES
         LINK_FLAGS "-headerpad_max_install_names -flat_namespace"
     )
+    # Add AddressSanitizer linker flags for debug builds on macOS
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set_target_properties(${LIBNAME} PROPERTIES
+            LINK_FLAGS "${CMAKE_LINK_FLAGS} -fsanitize=address"
+        )
+    endif()
 elseif(WIN32)
     if(MINGW)
         # MinGW-specific linker flags
@@ -225,10 +260,17 @@ if(TEST_SOURCES)
     # Test compile options - compiler-specific
     target_compile_options(${TESTNAME} PRIVATE ${COMMON_COMPILE_OPTIONS})
 
-    # Add -rdynamic only for GCC/Clang on Unix-like systems
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND NOT WIN32)
+    # Add -rdynamic only for GCC/Clang on Unix-like systems (excluding macOS)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND UNIX AND NOT APPLE AND NOT WIN32)
         target_compile_options(${TESTNAME} PRIVATE -rdynamic)
         target_link_libraries(${TESTNAME} PRIVATE ${CMAKE_DL_LIBS})
+    endif()
+
+    # Add AddressSanitizer linker flags for debug builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set_target_properties(${TESTNAME} PROPERTIES
+            LINK_FLAGS "${CMAKE_LINK_FLAGS} -fsanitize=address"
+        )
     endif()
 
     # Test compile definitions

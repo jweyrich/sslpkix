@@ -3,46 +3,44 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 #include <openssl/opensslv.h>
+#include <openssl/provider.h>
 #if defined(_WIN32)
 #  include <NTSecAPI.h>
 #endif
 
 namespace sslpkix {
 
+static OSSL_PROVIDER* g_provider = nullptr;
+
 bool startup(void) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-	CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
-	OpenSSL_add_all_algorithms(); // Add all cipher and digest algorithms
-	ERR_load_crypto_strings();
-	//ERR_load_OBJ_strings();
-#else
 	uint64_t opts = 0
-		| OPENSSL_INIT_NO_ADD_ALL_CIPHERS
-		| OPENSSL_INIT_NO_ADD_ALL_DIGESTS
+		| OPENSSL_INIT_ADD_ALL_CIPHERS
+		| OPENSSL_INIT_ADD_ALL_DIGESTS
 		| OPENSSL_INIT_LOAD_CONFIG
 		| OPENSSL_INIT_ENGINE_OPENSSL
 		| OPENSSL_INIT_ENGINE_RDRAND
 		;
-	OPENSSL_init_crypto(opts, NULL);
-#endif
+	int init_result = OPENSSL_init_crypto(opts, NULL);
+	if (init_result != 1) {
+		std::cerr << "Error initializing OpenSSL: " << ERR_get_error() << std::endl;
+		return false;
+	}
+	g_provider = OSSL_PROVIDER_load(nullptr, "default");
+	if (!g_provider) {
+		std::cerr << "Error loading OpenSSL provider: " << ERR_get_error() << std::endl;
+		return false;
+	}
 	return true;
 }
 
 void shutdown(void) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-	X509V3_EXT_cleanup();
-
-	// Quote from the official documentation: OBJ_cleanup() was deprecated in OpenSSL 1.1.0 by OPENSSL_init_crypto(3) and should not be used.
-	OBJ_cleanup(); // for any OBJ_create
-	ERR_free_strings(); // for ERR_load_crypto_strings
-	EVP_cleanup(); // for OpenSSL_add_all_algorithms
-	RAND_cleanup();
-	CRYPTO_cleanup_all_ex_data();
-#else
-	// FIXME(jweyrich): Figure out if we're missing a cleanup to avoid the curent memory leaks.
+	// TODO(jweyrich): Figure out if we're missing a cleanup to avoid the curent memory leaks.
 	// Test using: valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all -s --num-callers=40 ./run_tests
-	X509V3_EXT_cleanup();
-#endif
+	if (g_provider) {
+		OSSL_PROVIDER_unload(g_provider);
+		g_provider = nullptr;
+	}
+	OPENSSL_cleanup();
 }
 
 bool seed_prng(void) {
@@ -68,16 +66,12 @@ bool seed_prng(void) {
 	return true;
 }
 
-void print_errors(FILE *file) {
-	ERR_print_errors_fp(file);
-}
-
 bool add_custom_object(const char *oid, const char *sn, const char *ln, int *out_nid) {
 	if (out_nid == NULL)
 		return false;
 	int nid = OBJ_create(oid, sn, ln);
 	if (nid == NID_undef) {
-		std::cerr << "Error creating object: " << oid << " " << sn << " " << ln << std::endl;
+		std::cerr << "Error creating object: " << oid << ", " << sn << ", " << ln << std::endl;
 		return false;
 	}
 	X509V3_EXT_add_alias(nid, NID_netscape_comment);
