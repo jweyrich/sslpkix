@@ -85,16 +85,48 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
     auto keypair = factory::generate_key_rsa(512);
     REQUIRE(keypair != nullptr);
 
-    Key key;
+    PrivateKey private_key(keypair);
+    auto pubkey_only = private_key.pubkey();
+    Key *public_key = pubkey_only.get();
 
-    SECTION("Assign RSA key") {
-        REQUIRE_NOTHROW(key.assign(keypair));
-        REQUIRE(key.algorithm() == Key::Cipher::Type::RSA);
+    SECTION("Assign RSA keypair") {
+        Key new_key;
+        REQUIRE_NOTHROW(new_key.assign(keypair));
+        REQUIRE(new_key.algorithm() == Key::Cipher::Type::RSA);
+        REQUIRE(new_key == *public_key);
+        REQUIRE(new_key == private_key);
+        REQUIRE(new_key.has_public_key());
+        REQUIRE(new_key.has_private_key());
     }
 
-    SECTION("Copy RSA key") {
-        REQUIRE_NOTHROW(key.copy(keypair));
-        REQUIRE(key.algorithm() == Key::Cipher::Type::RSA);
+    SECTION("Copy RSA keypair") {
+        Key new_key;
+        REQUIRE_NOTHROW(new_key.copy(keypair));
+        REQUIRE(new_key.algorithm() == Key::Cipher::Type::RSA);
+        REQUIRE(new_key == *public_key);
+        REQUIRE(new_key == private_key);
+        REQUIRE(new_key.has_public_key());
+        REQUIRE(new_key.has_private_key());
+    }
+
+    SECTION("Assign RSA public key") {
+        Key new_key;
+        REQUIRE_NOTHROW(new_key.assign(public_key->handle()));
+        REQUIRE(new_key.algorithm() == Key::Cipher::Type::RSA);
+        REQUIRE(new_key == *public_key);
+        REQUIRE(new_key == private_key);
+        REQUIRE(new_key.has_public_key());
+        REQUIRE_FALSE(new_key.has_private_key());
+    }
+
+    SECTION("Copy RSA public key") {
+        Key new_key;
+        REQUIRE_NOTHROW(new_key.copy(public_key->handle()));
+        REQUIRE(new_key.algorithm() == Key::Cipher::Type::RSA);
+        REQUIRE(new_key == *public_key);
+        REQUIRE(new_key == private_key);
+        REQUIRE(new_key.has_public_key());
+        REQUIRE_FALSE(new_key.has_private_key());
     }
 }
 #endif

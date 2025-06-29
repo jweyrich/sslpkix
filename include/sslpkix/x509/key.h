@@ -6,9 +6,9 @@
 #include <type_traits>
 #include <stdexcept>
 #include <openssl/core_names.h>
-#include <openssl/opensslv.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/opensslv.h>
 #include "sslpkix/iosink.h"
 #include "sslpkix/exception.h"
 
@@ -44,6 +44,28 @@ namespace detail {
     inline int get_algorithm_type(EVP_PKEY* pkey) {
         if (!pkey) return EVP_PKEY_NONE; // Zero!
         return EVP_PKEY_get_base_id(pkey);
+    }
+
+    /**
+     * @brief Returns true if the key has a public key.
+     */
+    inline bool has_public_key(const EVP_PKEY* key) noexcept {
+        auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(
+            EVP_PKEY_CTX_new_from_pkey(NULL, const_cast<EVP_PKEY*>(key), NULL),
+            EVP_PKEY_CTX_free
+        );
+        return ctx && EVP_PKEY_public_check_quick(ctx.get()) == 1;
+    }
+
+    /**
+     * @brief Returns true if the informed key has a private key.
+     */
+    inline bool has_private_key(const EVP_PKEY* key) noexcept {
+        auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(
+            EVP_PKEY_CTX_new_from_pkey(NULL, const_cast<EVP_PKEY*>(key), NULL),
+            EVP_PKEY_CTX_free
+        );
+        return ctx && EVP_PKEY_private_check(ctx.get()) == 1;
     }
 
 } // namespace detail
@@ -145,11 +167,7 @@ public:
         if (!is_valid()) {
             return false;
         }
-        auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(
-            EVP_PKEY_CTX_new_from_pkey(NULL, _handle.get(), NULL),
-            EVP_PKEY_CTX_free
-        );
-        return ctx && EVP_PKEY_public_check_quick(ctx.get()) == 1;
+        return detail::has_public_key(_handle.get());
     }
 
     /**
@@ -159,12 +177,10 @@ public:
         if (!is_valid()) {
             return false;
         }
-        auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(
-            EVP_PKEY_CTX_new_from_pkey(NULL, _handle.get(), NULL),
-            EVP_PKEY_CTX_free
-        );
-        return ctx && EVP_PKEY_private_check(ctx.get()) == 1;
+        return detail::has_private_key(_handle.get());
     }
+
+
 
     // Get algorithm type
     Cipher::Type algorithm() const {
@@ -230,6 +246,7 @@ public:
     /**
      * @brief Copies the contents of an existing key to this Key object.
      * @note This method creates a new EVP_PKEY by duplicating the existing key.
+     * It copies both the public and private key information if available.
      * @param key The existing EVP_PKEY to copy.
      * @return true if the copy was successful, false otherwise.
      */
@@ -237,15 +254,27 @@ public:
         if (!key) {
             throw error::key::InvalidArgumentError("Cannot copy from a null key");
         }
-        auto provider = EVP_PKEY_get0_provider(key);
-        if (!provider) {
-            throw error::key::InvalidArgumentError("Cannot copy from a legacy key");
+
+        auto mem = std::unique_ptr<BIO, decltype(&BIO_free)>(BIO_new(BIO_s_mem()), BIO_free);
+        if (!mem) {
+            throw error::key::BadAllocError("Failed to create BIO for key serialization");
         }
-        EVP_PKEY* new_key = EVP_PKEY_dup(const_cast<EVP_PKEY*>(key));
-        if (!new_key) {
-            throw error::key::RuntimeError("Failed to copy key");
+
+        if (detail::has_private_key(key)) {
+            // If the key has a private key, write both private and public keys
+            if (!PEM_write_bio_PrivateKey(mem.get(), key, nullptr, nullptr, 0, nullptr, nullptr)) {
+                throw error::key::RuntimeError("Failed to write private key to BIO");
+            }
+            EVP_PKEY* copy = PEM_read_bio_PrivateKey_ex(mem.get(), nullptr, nullptr, nullptr, nullptr, nullptr);
+            _handle.reset(copy);
+        } else {
+            // Always write the public key, even if the private key is not present
+            if (!PEM_write_bio_PUBKEY(mem.get(), key)) {
+                throw error::key::RuntimeError("Failed to write public key to BIO");
+            }
+            EVP_PKEY* copy = PEM_read_bio_PUBKEY_ex(mem.get(), nullptr, nullptr, nullptr, nullptr, nullptr);
+            _handle.reset(copy);
         }
-        _handle.reset(new_key);
     }
 
     virtual int print_ex(BIO* bio) const noexcept {
