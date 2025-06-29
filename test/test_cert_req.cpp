@@ -168,20 +168,20 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Public Key O
 }
 
 TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Subject Operations", "[certificate_request][subject]") {
-    CertificateRequest req;
-    CertificateName subject = create_certificate_name();
-
     SECTION("Set and get subject") {
+        CertificateName subject = create_certificate_name();
+
+        CertificateRequest req;
         REQUIRE_NOTHROW(req.set_subject(subject));
 
-        const CertificateName& subject = req.subject();
-        REQUIRE(subject.handle() != nullptr);
+        const CertificateName& subject_copy = req.subject();
+        REQUIRE(subject_copy.handle() != nullptr);
 
         // Test non-const access
         // CertificateName& mutable_subject = req.subject();
         // REQUIRE(mutable_subject.handle() != nullptr);
         CertificateName mutable_subject = req.subject();
-        REQUIRE(mutable_subject.handle() != subject.handle());
+        REQUIRE(mutable_subject.handle() != subject_copy.handle());
     }
 }
 
@@ -249,13 +249,12 @@ TEST_CASE("CertificateRequest Extensions", "[certificate_request][extensions]") 
 }
 
 TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Verification Operations", "[certificate_request][verification]") {
-    CertificateRequest req;
-    CertificateName subject = create_certificate_name();
-
     EVP_PKEY* keypair = create_keypair();
     std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair);
     std::unique_ptr<Key> public_key = private_key->pubkey();
 
+    CertificateName subject = create_certificate_name();
+    CertificateRequest req;
     REQUIRE_NOTHROW(req.set_version(CertificateRequest::Version::v1));
     REQUIRE_NOTHROW(req.set_pubkey(*public_key));
     REQUIRE_NOTHROW(req.set_subject(subject));
@@ -270,9 +269,9 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Verification
     }
 
     SECTION("Verification fails on default constructed request") {
-        CertificateRequest req;
-        REQUIRE_FALSE(req.verify_signature(*public_key));
-        REQUIRE_FALSE(req.matches_private_key(*private_key));
+        CertificateRequest default_req;
+        REQUIRE_FALSE(default_req.verify_signature(*public_key));
+        REQUIRE_FALSE(default_req.matches_private_key(*private_key));
     }
 }
 

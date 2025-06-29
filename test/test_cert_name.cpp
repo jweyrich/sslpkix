@@ -185,9 +185,8 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName field operations",
 }
 
 TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName field accessors", "[CertificateName][accessors]") {
-	auto name = createTestName();
-
 	SECTION("Field getters") {
+		auto name = createTestName();
 		REQUIRE(name.common_name() == "Test User");
 		REQUIRE(name.country() == "US");
 		REQUIRE(name.state() == "California");
