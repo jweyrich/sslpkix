@@ -101,7 +101,6 @@ std::unique_ptr<Key> Key::pubkey() const {
     auto ctx_ptr = EVP_PKEY_CTX_new_from_name(nullptr, key_type_name, nullptr);
     if (!ctx_ptr) {
         throw error::key::RuntimeError("Failed on EVP_PKEY_CTX_new_from_name");
-        return nullptr;
     }
     auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(ctx_ptr, EVP_PKEY_CTX_free);
 
