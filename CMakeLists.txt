@@ -304,6 +304,34 @@ if(TEST_SOURCES)
     endif()
 endif()
 
+# Doxygen documentation generation
+find_package(Doxygen)
+if(DOXYGEN_FOUND)
+    # Configure the Doxyfile
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
+
+    # Create docs directory
+    add_custom_target(docs
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/docs
+        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM
+    )
+
+    # Install documentation
+    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/docs/
+            DESTINATION ${CMAKE_INSTALL_DOCDIR}
+            OPTIONAL
+    )
+
+    message(STATUS "  Doxygen found: YES")
+    message(STATUS "  Documentation target: docs")
+else()
+    message(STATUS "  Doxygen found: NO (install doxygen to generate documentation)")
+endif()
+
 # Installation
 install(TARGETS ${LIBNAME}
     EXPORT ${LIBNAME}Targets
@@ -445,4 +473,10 @@ if(TEST_SOURCES)
     message(STATUS "  Catch2 will be downloaded automatically")
 else()
     message(STATUS "  Test sources found: NO")
+endif()
+if(DOXYGEN_FOUND)
+    message(STATUS "  Doxygen found: YES")
+    message(STATUS "  Documentation target: docs")
+else()
+    message(STATUS "  Doxygen found: NO (install doxygen to generate documentation)")
 endif()
