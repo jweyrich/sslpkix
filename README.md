@@ -11,8 +11,10 @@ OpenSSL 3.0.0 or newer.
 Configure and build everything (library + tests):
 
 ```bash
-# Configure (will automatically download Catch2)
+# Configure it (will automatically download Catch2)
 cmake -B build -S .
+# Alternatively, configure it for debugging
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
 
 # Build library and tests
 cmake --build build
