@@ -340,7 +340,23 @@ public:
             throw error::cert::RuntimeError("Key is missing public or private part");
         }
 
-        if (!X509_sign(_handle.get(), key.handle(), Digest::handle(digest))) {
+        const auto key_algorithm = key.algorithm();
+        if (key.algorithm() == KeyType::UNKNOWN) {
+            throw error::cert::RuntimeError("Key algorithm is unknown");
+        }
+
+        // TODO(jweyrich): We probably want the digest logic below to be abstracted away by each key type
+        // specifying if it supports a digest choice or not.
+
+        // Digest choice is not allowed for Ed25519 and Ed448 keys as they are deterministic algorithms with a built-in
+        // hash (SHA-512 or SHAKE256 respectively).
+        const bool digest_choice_allowed = !(key_algorithm == KeyType::ED25519 || key_algorithm == KeyType::ED448);
+        const auto md = digest_choice_allowed ? Digest::handle(digest) : nullptr;
+        if (digest_choice_allowed && !md) {
+            throw error::cert::InvalidArgumentError("Invalid digest type");
+        }
+
+        if (!X509_sign(_handle.get(), key.handle(), md)) {
             throw error::cert::RuntimeError("Failed to sign certificate");
         }
     }

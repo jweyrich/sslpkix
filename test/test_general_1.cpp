@@ -141,4 +141,3 @@ TEST_CASE("CertificateName entries", "[certificate_name][entries]")
 	REQUIRE_NOTHROW(name.set_state("SP"));
 	REQUIRE(name.state() == "SP");
 }
-

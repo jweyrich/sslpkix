@@ -83,7 +83,7 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Construction", "[certifica
         X509* x509 = X509_new();
         REQUIRE(x509 != nullptr);
 
-        Certificate cert(x509);
+        Certificate cert(x509); // Ownership is transferred to Certificate
         REQUIRE(cert.is_valid());
         REQUIRE(cert.handle() == x509);
     }
