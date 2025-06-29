@@ -30,9 +30,9 @@ struct FileScopedListenerCertNameExtensions :  Catch::EventListenerBase {
     void testRunStarting(Catch::TestRunInfo const& testRunInfo) override {
         std::cout << "Running once before tests in this file: " << testRunInfo.name << std::endl;
 
-		// Add a custom extension
-		REQUIRE(sslpkix::add_custom_object(OID_clientToken, SN_clientToken, LN_clientToken, &nid_clientToken));
-		REQUIRE(sslpkix::add_custom_object(OID_usersLimit, SN_usersLimit, LN_usersLimit, &nid_usersLimit));
+		// Add custom extensions
+		nid_clientToken = sslpkix::add_custom_object(OID_clientToken, SN_clientToken, LN_clientToken);
+		nid_usersLimit = sslpkix::add_custom_object(OID_usersLimit, SN_usersLimit, LN_usersLimit);
     }
 };
 
