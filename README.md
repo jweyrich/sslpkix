@@ -4,7 +4,7 @@ A dead simple to use C++ wrapper for handling digital certificates using OpenSSL
 
 # Dependencies
 
-OpenSSL 3.5.0 or newer.
+OpenSSL 3.0.0 or newer.
 
 # How to build
 
