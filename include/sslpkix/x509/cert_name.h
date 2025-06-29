@@ -322,6 +322,7 @@ public:
             unsigned char* enc2 = nullptr;
             int len2 = i2d_X509_NAME(rhs.handle_.get(), &enc2);
             if (len2 < 0) {
+                OPENSSL_free(enc1);
                 throw error::cert_name::RuntimeError("Failed to encode rhs certificate name");
             }
 
