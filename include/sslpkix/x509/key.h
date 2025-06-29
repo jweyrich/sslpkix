@@ -298,6 +298,16 @@ public:
     }
 
     // Comparison operators
+
+    /**
+     * @brief Compares two keys for equality.
+     * @note This method compares the keys based solely on their public key information.
+     * If keys are not valid, it will compare the handles directly.
+     * It does not compare the private key information.
+     * If you want to compare the private keys, you should use the has_private_key() method
+     * to check if both keys have a private key, and then compare the public key information.
+     * @return true if the keys are equal, false otherwise.
+     */
     friend bool operator==(const Key& lhs, const Key& rhs) {
         if (!lhs._handle || !rhs._handle) {
             return lhs._handle == rhs._handle;
