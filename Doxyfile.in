@@ -4,7 +4,7 @@
 # Project information
 PROJECT_NAME           = "@PROJECT_NAME@"
 PROJECT_NUMBER        = "@PROJECT_VERSION@"
-PROJECT_BRIEF         = "SSL/PKIX library for certificate and key management"
+PROJECT_BRIEF         = "SSLPKIX library for certificate and key management"
 OUTPUT_DIRECTORY      = @CMAKE_CURRENT_BINARY_DIR@/docs
 
 # Input settings
@@ -12,7 +12,7 @@ INPUT                 = @CMAKE_CURRENT_SOURCE_DIR@/include @CMAKE_CURRENT_SOURCE
 INPUT_ENCODING        = UTF-8
 FILE_PATTERNS         = *.h *.hpp *.c *.cpp
 RECURSIVE             = YES
-EXCLUDE_PATTERNS      = */test/* */tests/* */build/* */CMakeFiles/* */pki/*
+EXCLUDE_PATTERNS      = */test/* */tests/* */build/* */CMakeFiles/* */docs/*
 EXCLUDE_SYMLINKS      = YES
 
 # Output settings
