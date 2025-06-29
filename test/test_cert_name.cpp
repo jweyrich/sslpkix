@@ -61,15 +61,20 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName creation and basic
 
 TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName handle constructor", "[CertificateName][constructor]") {
 	SECTION("Valid handle construction") {
-		X509_NAME* raw_name = X509_NAME_new();
-		REQUIRE(raw_name != nullptr);
+		X509_NAME* raw_name1 = X509_NAME_new();
+		REQUIRE(raw_name1 != nullptr);
+		CertificateName managed_name(raw_name1); // Takes ownership by default
+		REQUIRE(managed_name);
+		REQUIRE(managed_name.handle() == raw_name1);
 
-		CertificateName name(raw_name);
-		REQUIRE(name);
-		REQUIRE(name.handle() == raw_name);
+		X509_NAME* raw_name2 = X509_NAME_new();
+		REQUIRE(raw_name2 != nullptr);
+		CertificateName unmanaged_name(raw_name2, false); // Does not take ownership
+		REQUIRE(unmanaged_name);
+		REQUIRE(unmanaged_name.handle() == raw_name2);
 
 		// Cleanup the handle
-		X509_NAME_free(raw_name);
+		X509_NAME_free(raw_name2);
 	}
 
 	SECTION("Null handle does not throw exception") {

@@ -53,11 +53,16 @@ public:
     }
 
     /**
-     * @brief Constructor for external handle (does not create new name)
-     * @note 1. Does not increment reference count
-     * @note 2. Does not take ownership
+     * @brief This constructor initializes a CertificateName object using an existing X509_NAME handle.
+     * It optionally transfers ownership of the handle, managing its lifecycle with a custom deleter.
+     *
+     * @param external_handle The existing X509_NAME handle to wrap. If you pass a null handle, it will create an empty CertificateName.
+     * @param transfer_ownership If true, the CertificateName will take ownership of the handle
+     *
+     * @throws `error::cert_name::BadAllocError` if the handle is null and transfer_ownership is true
+     * @throws `std::runtime_error` if the handle is null and transfer_ownership is false
      */
-    explicit CertificateName(X509_NAME* external_handle) : handle_(external_handle, Deleter{false}) {}
+    explicit CertificateName(X509_NAME* external_handle, bool transfer_ownership = true) : handle_(external_handle, Deleter{transfer_ownership}) {}
 
     // Copy constructor - deep copy
     CertificateName(const CertificateName& other) {

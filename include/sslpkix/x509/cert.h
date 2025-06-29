@@ -428,7 +428,7 @@ public:
         if (!duplicated) {
             throw error::cert::RuntimeError("Failed to duplicate subject name");
         }
-        return CertificateName{duplicated}; // Takes ownership
+        return CertificateName{duplicated}; // Takes ownership by default
     }
 
     CertificateName subject() {
@@ -441,7 +441,7 @@ public:
         if (!duplicated) {
             throw error::cert::RuntimeError("Failed to duplicate subject name");
         }
-        return CertificateName{duplicated}; // Takes ownership
+        return CertificateName{duplicated}; // Takes ownership by default
     }
 
     void set_issuer(const CertificateName& issuer) {
@@ -467,7 +467,7 @@ public:
         if (!duplicated) {
             throw error::cert::RuntimeError("Failed to duplicate issuer name");
         }
-        return CertificateName{duplicated}; // Takes ownership
+        return CertificateName{duplicated}; // Takes ownership by default
     }
 
     CertificateName issuer() {
@@ -480,7 +480,7 @@ public:
         if (!duplicated) {
             throw error::cert::RuntimeError("Failed to duplicate issuer name");
         }
-        return CertificateName{duplicated}; // Takes ownership
+        return CertificateName{duplicated}; // Takes ownership by default
     }
 
     bool verify_signature(const Key& key) const {
