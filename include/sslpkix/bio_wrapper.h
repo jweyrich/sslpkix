@@ -12,9 +12,28 @@ public:
             BIO_free(_bio);
         }
     }
-    BIO *get() const { return _bio; }
     BioWrapper(const BioWrapper &) = delete;
     BioWrapper &operator=(const BioWrapper &) = delete;
+
+    [[nodiscard]] BIO *get() const noexcept { return _bio; }
+    [[nodiscard]] explicit operator BIO *() const noexcept { return _bio; }
+    [[nodiscard]] explicit operator bool() const noexcept { return _bio != nullptr; }
+
+    bool operator==(const BioWrapper &other) const noexcept {
+        return _bio == other._bio;
+    }
+
+    bool operator==(const BIO* other) const noexcept {
+        return _bio == other;
+    }
+
+    bool operator!=(const BioWrapper &other) const noexcept {
+        return _bio != other._bio;
+    }
+
+    bool operator!=(const BIO* other) const noexcept {
+        return _bio != other;
+    }
 
 private:
     BIO *_bio;
