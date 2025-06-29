@@ -59,7 +59,26 @@ public:
         _handle.reset(new_cert);
     }
 
-    // Constructor for creating certificate from existing X509 handle
+    /**
+     * @brief This constructor initializes a Certificate object using an existing X509 handle.
+     * It takes ownership and manages the handle using a smart pointer.
+     *
+     * @throw error::cert::InvalidArgumentError if the provided handle is null.
+     * @param cert_handle The existing X509 handle to wrap.
+     *
+     * @note The handle is expected to be a valid X509 certificate, and it
+     *       should not be used after passing it to this constructor, as the Certificate
+     *       object will take ownership of it and manage its lifetime.
+     * @note This constructor does not check if the certificate has all required fields.
+     *       It is the caller's responsibility to ensure that the certificate is valid and has
+     *       the necessary fields set before passing it to this constructor.
+     *       If you need to check the validity of the certificate, use the `has_required_fields()`
+     *       method after constructing the Certificate object.
+     * @note This constructor does not perform any validation on the provided X509 handle.
+     *       It is the caller's responsibility to ensure that the handle is a valid X509 certificate.
+     *       If the handle is not a valid X509 certificate, it may lead to undefined behavior
+     *       when using the Certificate object.
+     */
     explicit Certificate(X509* cert_handle) {
         if (!cert_handle) {
             throw error::cert::InvalidArgumentError("Certificate handle cannot be null");

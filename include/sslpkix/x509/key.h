@@ -331,7 +331,19 @@ public:
 protected:
     detail::handle_ptr _handle{nullptr, detail::EVP_PKEY_Deleter()};
 
-    // Protected constructor for creating empty key (used by derived classes)
+    /**
+     * @brief This constructor is a protected, explicit, and inline constructor used for creating an empty key, primarily
+     * intended for use by derived classes. If the `create_handle` parameter is true, it initializes a new key by invoking
+     * `create_new_key()` and assigns a unique `key_id` using a static counter.
+     *
+     * @param create_handle If true, a new key is created; otherwise, the key is left uninitialized.
+     *
+     * @throws `error::key::BadAllocError` if the key creation fails.
+     *
+     * @note 1. This constructor is not intended for direct use outside of the class hierarchy.
+     * @note 2. The `key_id` is assigned a unique value from a static counter to uniquely identify each key instance.
+     * @note 3. This constructor is used to create a new key when the `Key` object is instantiated without any parameters or when a new key is explicitly requested.
+     */
     explicit Key(bool create_handle) {
         if (create_handle) {
             create_new_key();
@@ -354,10 +366,18 @@ protected:
     static int static_key_counter;
 
 public:
-    // Default constructor - creates a new key
+    /**
+     * @brief This inline default constructor initializes a new key by delegating to another constructor with a true argument.
+     * It simplifies the creation of a key with default behavior.
+     */
     Key() : Key(true) {}
 
-    // Constructor for external handle (does not create new key)
+    /**
+     * @brief This constructor initializes a Key object using an external EVP_PKEY handle without creating a new key.
+     * It assigns a unique key ID and sets the external handle.
+     *
+     * @param external_handle The existing EVP_PKEY handle to wrap.
+     */
     explicit Key(EVP_PKEY* external_handle) {
         key_id = static_key_counter++;
         // auto provider = EVP_PKEY_get0_provider(external_handle);
@@ -576,10 +596,14 @@ public:
 
 protected:
     /**
-     * @brief Set the external handle object
-     * @note This method increments the reference count of the existing key so it can be safely used and free'd elsewhere.
+     * @brief Sets an external EVP_PKEY handle for the key. It increments the reference count of the provided handle,
+     * throws a runtime error if the increment fails, and resets the internal handle to the provided one or clears it if the input is null.
+     * This allows the Key object to manage an external key without taking ownership of it.
+     * This is useful when you want to use an existing key without duplicating it.
      *
-     * @param handle
+     * @param handle The external EVP_PKEY handle to set.
+     *
+     * @note This method increments the reference count of the existing key so it can be safely used and free'd elsewhere.
      */
     void set_external_handle(EVP_PKEY* handle) {
         if (!handle) {
