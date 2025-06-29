@@ -43,8 +43,8 @@ protected:
 private:
 
     void createTestKeyPair() {
-        EVP_PKEY* private_pkey = factory::generate_key_rsa(512);
-        test_private_key = std::make_unique<PrivateKey>(private_pkey);
+        auto keypair = factory::generate_key_rsa(512);
+        test_private_key = Key(keypair).privkey();
         test_public_key = test_private_key->pubkey();
     }
 

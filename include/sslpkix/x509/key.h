@@ -299,6 +299,9 @@ namespace traits {
     };
 } // namespace traits
 
+// Forward declaration of PrivateKey
+class PrivateKey;
+
 //
 // NOTE: With OpenSSL, the private key also contains the public key information
 //
@@ -567,10 +570,20 @@ public:
     }
 
     /**
-     * @brief Returns a public key from a private key.
+     * @brief Returns the public key (only) from a private key.
      * @note This is a convenience method that extracts the public key from the private key.
+     * @return A unique_ptr to a Key object containing only the public key.
      */
     std::unique_ptr<Key> pubkey() const;
+
+    /**
+     * @brief Casts the key to a private key.
+     * @note This is a convenience method that returns a unique_ptr to a PrivateKey object.
+     * @return A unique_ptr to a PrivateKey object containing the original key material, which may contain the public key.
+     */
+    std::unique_ptr<PrivateKey> privkey() const {
+        return std::make_unique<PrivateKey>(_handle.get());
+    }
 
 protected:
     /**
