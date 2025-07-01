@@ -82,12 +82,12 @@ TEST_CASE_METHOD(CertificateTestFixture, "Certificate Construction", "[certifica
         X509* x509 = X509_new();
         REQUIRE(x509 != nullptr);
 
-        Certificate cert(x509); // Ownership is transferred to Certificate
+        Certificate cert(x509, ResourceOwnership::Transfer);
         REQUIRE(cert.handle() == x509);
     }
 
     SECTION("Constructor with null handle throws") {
-        REQUIRE_THROWS_AS(Certificate(nullptr), std::invalid_argument);
+        REQUIRE_THROWS_AS(Certificate(nullptr, ResourceOwnership::Transfer), std::invalid_argument);
     }
 }
 
