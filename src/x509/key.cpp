@@ -3,14 +3,46 @@
 
 namespace sslpkix {
 
+using param_builder_ptr = std::unique_ptr<OSSL_PARAM_BLD, decltype(&OSSL_PARAM_BLD_free)>;
+using ossl_param_ptr = std::unique_ptr<OSSL_PARAM, decltype(&OSSL_PARAM_free)>;
+using evp_pkey_ctx_ptr = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>;
+
 int Key::static_key_counter = 0;
 
-std::unique_ptr<OSSL_PARAM, decltype(&OSSL_PARAM_free)> build_params(OSSL_PARAM_BLD* builder) {
+ossl_param_ptr traits::build_key_params(OSSL_PARAM_BLD* builder) {
     auto params = OSSL_PARAM_BLD_to_param(builder);
     if (!params) {
         throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_to_param");
     }
-    return std::unique_ptr<OSSL_PARAM, decltype(&OSSL_PARAM_free)>(params, OSSL_PARAM_free);
+    return ossl_param_ptr(params, OSSL_PARAM_free);
+}
+
+traits::ossl_param_ptr traits::extract_pubkey_parameters(const char *key_type_name, EVP_PKEY* pkey, OSSL_PARAM_BLD* params_builder) {
+
+    if (!key_type_name || !pkey || !params_builder) {
+        throw error::key::InvalidArgumentError("Invalid arguments for extracting public key parameters");
+    }
+
+    auto name_func_pairs = {
+        std::make_pair("RSA", &traits::RSA::extract_pubkey_params),
+        std::make_pair("DSA", &traits::DSA::extract_pubkey_params),
+        std::make_pair("DH", &traits::DH::extract_pubkey_params),
+        std::make_pair("EC", &traits::EC::extract_pubkey_params),
+        std::make_pair("ED25519", &traits::ED::extract_pubkey_params),
+        std::make_pair("ED448", &traits::ED::extract_pubkey_params),
+        std::make_pair("X25519", &traits::X25519::extract_pubkey_params),
+        std::make_pair("X448", &traits::X25519::extract_pubkey_params)
+    };
+
+    traits::ossl_param_ptr params(nullptr, OSSL_PARAM_free);
+    for (const auto& pair : name_func_pairs) {
+        if (strcmp(key_type_name, pair.first) == 0) {
+            params = pair.second(pkey, params_builder);
+            break;
+        }
+    }
+
+    return params; // It may return nullptr if no matching type was found
 }
 
 // TODO(jweyrich): Move to a KeyExtractor class that supports specialized extraction of public keys
@@ -25,94 +57,28 @@ std::unique_ptr<Key> Key::pubkey() const {
     }
 
     // Build provider-native BN parameters directly:
-    auto params_builder = std::unique_ptr<OSSL_PARAM_BLD, decltype(&OSSL_PARAM_BLD_free)>(OSSL_PARAM_BLD_new(), OSSL_PARAM_BLD_free);
+    param_builder_ptr params_builder(OSSL_PARAM_BLD_new(), OSSL_PARAM_BLD_free);
     if (!params_builder) {
         throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_new");
     }
 
-    auto params = std::unique_ptr<OSSL_PARAM, decltype(&OSSL_PARAM_free)>(nullptr, OSSL_PARAM_free);
-
-    if (strcmp(key_type_name, "RSA") == 0) {
-        BIGNUM* n = nullptr;
-        BIGNUM* e = nullptr;
-        if (!EVP_PKEY_get_bn_param(_handle.get(), OSSL_PKEY_PARAM_RSA_N, &n) ||
-            !EVP_PKEY_get_bn_param(_handle.get(), OSSL_PKEY_PARAM_RSA_E, &e))
-        {
-            throw error::key::RuntimeError("Failed on EVP_PKEY_get_bn_param");
-        }
-
-        if (!OSSL_PARAM_BLD_push_BN(params_builder.get(), OSSL_PKEY_PARAM_RSA_N, n) ||
-            !OSSL_PARAM_BLD_push_BN(params_builder.get(), OSSL_PKEY_PARAM_RSA_E, e))
-        {
-            BN_free(n);
-            BN_free(e);
-            throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_*");
-        }
-
-        params = build_params(params_builder.get());
-
-        BN_free(n);
-        BN_free(e);
-    } else if (strcmp(key_type_name, "EC") == 0) {
-        // Extract curve name
-        char curve_name[80];
-        size_t curve_len = 0;
-        if (EVP_PKEY_get_utf8_string_param(_handle.get(), OSSL_PKEY_PARAM_GROUP_NAME, curve_name, sizeof(curve_name), &curve_len) != 1) {
-            throw error::key::RuntimeError("Failed on EVP_PKEY_get_utf8_string_param");
-        }
-
-        // Get public key
-        size_t pubkey_len = 0;
-        if (EVP_PKEY_get_octet_string_param(_handle.get(), OSSL_PKEY_PARAM_PUB_KEY, nullptr, 0, &pubkey_len) != 1) {
-            throw error::key::RuntimeError("Failed on EVP_PKEY_get_octet_string_param (size)");
-        }
-
-        std::vector<unsigned char> pubkey(pubkey_len);
-        if (EVP_PKEY_get_octet_string_param(_handle.get(), OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len, nullptr) != 1) {
-            throw error::key::RuntimeError("Failed on EVP_PKEY_get_octet_string_param (data)");
-        }
-
-        if (!OSSL_PARAM_BLD_push_utf8_string(params_builder.get(), OSSL_PKEY_PARAM_GROUP_NAME, curve_name, curve_len) ||
-            !OSSL_PARAM_BLD_push_octet_string(params_builder.get(), OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len))
-        {
-            throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_*");
-        }
-
-        params = build_params(params_builder.get());
-    } else if (strcmp(key_type_name, "ED25519") == 0 || strcmp(key_type_name, "ED448") == 0) {
-        size_t pubkey_len = 0;
-        if (EVP_PKEY_get_octet_string_param(_handle.get(), OSSL_PKEY_PARAM_PUB_KEY, nullptr, 0, &pubkey_len) != 1) {
-            throw error::key::RuntimeError("Failed on EVP_PKEY_get_octet_string_param (size)");
-        }
-
-        std::vector<unsigned char> pubkey(pubkey_len);
-        if (EVP_PKEY_get_octet_string_param(_handle.get(), OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len, nullptr) != 1) {
-            throw error::key::RuntimeError("Failed on EVP_PKEY_get_octet_string_param (data)");
-        }
-
-        if (!OSSL_PARAM_BLD_push_octet_string(params_builder.get(), OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len)) {
-            throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_*");
-        }
-
-        params = build_params(params_builder.get());
-    } else {
-        // Unsupported or custom key type
-        return nullptr;
+    auto params = traits::extract_pubkey_parameters(key_type_name, _handle.get(), params_builder.get());
+    if (!params) {
+        throw error::key::RuntimeError("Failed to extract public key parameters for key type: " + std::string(key_type_name));
     }
 
-    auto ctx_ptr = EVP_PKEY_CTX_new_from_name(nullptr, key_type_name, nullptr);
-    if (!ctx_ptr) {
+    evp_pkey_ctx_ptr ctx(EVP_PKEY_CTX_new_from_name(nullptr, key_type_name, nullptr), EVP_PKEY_CTX_free);
+    if (!ctx) {
         throw error::key::RuntimeError("Failed on EVP_PKEY_CTX_new_from_name");
     }
-    auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(ctx_ptr, EVP_PKEY_CTX_free);
 
-    if (EVP_PKEY_fromdata_init(ctx_ptr) <= 0) {
+    if (EVP_PKEY_fromdata_init(ctx.get()) != 1) {
         throw error::key::RuntimeError("Failed on EVP_PKEY_fromdata_init");
     }
 
     EVP_PKEY* new_pub_key = nullptr;
 
-    if (EVP_PKEY_fromdata(ctx_ptr, &new_pub_key, EVP_PKEY_PUBLIC_KEY, params.get()) <= 0) {
+    if (EVP_PKEY_fromdata(ctx.get(), &new_pub_key, EVP_PKEY_PUBLIC_KEY, params.get()) != 1) {
         throw error::key::RuntimeError("Failed on EVP_PKEY_fromdata");
     }
 
@@ -121,20 +87,20 @@ std::unique_ptr<Key> Key::pubkey() const {
 
 namespace factory {
     // Move to a KeyGenerator class?
-    EVP_PKEY* generate_key_ex(const char* key_type, const OSSL_PARAM* params) {
-        if (!key_type) {
+    EVP_PKEY* generate_key_ex(const char* key_type_name, const OSSL_PARAM* params) {
+        if (!key_type_name) {
             return nullptr;
         }
 
         EVP_PKEY* pkey = nullptr;
 
         // Create a context for key generation based on algorithm name
-        auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(EVP_PKEY_CTX_new_from_name(nullptr, key_type, nullptr), EVP_PKEY_CTX_free);
+        evp_pkey_ctx_ptr ctx(EVP_PKEY_CTX_new_from_name(nullptr, key_type_name, nullptr), EVP_PKEY_CTX_free);
         if (!ctx) {
             throw error::key::RuntimeError("Failed on EVP_PKEY_CTX_new_from_name");
         }
 
-        if (EVP_PKEY_keygen_init(ctx.get()) <= 0) {
+        if (EVP_PKEY_keygen_init(ctx.get()) != 1) {
             throw error::key::RuntimeError("Failed on EVP_PKEY_keygen_init");
         }
 
