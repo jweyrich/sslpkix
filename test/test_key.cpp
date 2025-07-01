@@ -77,7 +77,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key assignment", "[Key][assignment]") {
     PrivateKey private_key(keypair, ResourceOwnership::Transfer);
     Key new_key;
 
-    REQUIRE_NOTHROW(new_key.assign(keypair, ResourceOwnership::Default));
+    REQUIRE_NOTHROW(new_key.assign(keypair, ResourceOwnership::Default)); // Already owned by private_key above
     REQUIRE(new_key.algorithm() == KeyType::RSA);
     REQUIRE(new_key == private_key);
     REQUIRE(new_key.has_public_key());
@@ -95,7 +95,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
 
     SECTION("Assign RSA keypair") {
         Key new_key;
-        REQUIRE_NOTHROW(new_key.assign(keypair, ResourceOwnership::Default));
+        REQUIRE_NOTHROW(new_key.assign(keypair, ResourceOwnership::Default)); // Already owned by private_key above
         REQUIRE(new_key.algorithm() == KeyType::RSA);
         REQUIRE(new_key == *public_key);
         REQUIRE(new_key == private_key);
@@ -115,7 +115,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
 
     SECTION("Assign RSA public key") {
         Key new_key;
-        REQUIRE_NOTHROW(new_key.assign(public_key->handle(), ResourceOwnership::Default));
+        REQUIRE_NOTHROW(new_key.assign(public_key->handle(), ResourceOwnership::Default)); // Already owned by pubkey_only above
         REQUIRE(new_key.algorithm() == KeyType::RSA);
         REQUIRE(new_key == *public_key);
         REQUIRE(new_key == private_key);
@@ -205,11 +205,11 @@ TEST_CASE_METHOD(KeyTestFixture, "Key comparison operators", "[Key][comparison]"
     SECTION("Different keys comparison") {
         // Copying a key should result in an equal key
         // So comparing the copied key with the original should not throw an error
-        Key copied_key1(key1.handle(), ResourceOwnership::Default);
+        Key copied_key1(key1.handle(), ResourceOwnership::Default); // Already owned by key1 above
         REQUIRE(copied_key1 == key1);
         REQUIRE_FALSE(copied_key1 != key1);
 
-        Key copied_key2(key2.handle(), ResourceOwnership::Default);
+        Key copied_key2(key2.handle(), ResourceOwnership::Default); // Already owned by key2 above
         REQUIRE(copied_key2 == key2);
         REQUIRE_FALSE(copied_key2 != key2);
 
@@ -233,7 +233,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key external handle operations", "[Key][extern
     SECTION("Assign a null external handle") {
         EVP_PKEY* external_key = nullptr;
 
-        Key new_key(external_key, ResourceOwnership::Default);
+        Key new_key(external_key, ResourceOwnership::Transfer);
         REQUIRE(new_key.handle() == nullptr);
         REQUIRE(new_key.handle() == external_key);
     }
@@ -323,7 +323,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key error conditions", "[Key][error]") {
     }
 
     SECTION("Assign null key") {
-        REQUIRE_THROWS_AS(key.assign(nullptr, ResourceOwnership::Default), error::key::InvalidArgumentError);
+        REQUIRE_THROWS_AS(key.assign(nullptr, ResourceOwnership::Transfer), error::key::InvalidArgumentError);
     }
 
     SECTION("Copy null key") {
@@ -354,7 +354,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key pubkey", "[Key][pubkey]") {
     auto keypair = sslpkix::factory::generate_key_rsa(512);
     auto private_key = std::make_unique<sslpkix::PrivateKey>(keypair, ResourceOwnership::Transfer);
     // Create a public key from the private key
-    auto public_key = std::make_unique<sslpkix::Key>(private_key->handle(), ResourceOwnership::Default);
+    auto public_key = std::make_unique<sslpkix::Key>(private_key->handle(), ResourceOwnership::Default); // Already owned by private_key above
     // Extract the public key from the private key
     auto extracted_public_key = private_key->pubkey();
 
