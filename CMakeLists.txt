@@ -438,12 +438,23 @@ if(TEST_SOURCES)
     endif()
 
     # Custom target to run tests (matching original Makefile behavior)
-    add_custom_target(test-run
-        COMMAND ${CMAKE_CURRENT_BINARY_DIR}/build/${TESTNAME}
-        DEPENDS ${TESTNAME}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Running tests with Catch2"
-    )
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND UNIX AND NOT APPLE AND NOT WIN32)
+        # Configure LeakSanitizer on Unix-like systems (excluding macOS)
+        add_custom_target(test-run
+            COMMAND ${CMAKE_COMMAND} -E env "ASAN_OPTIONS=detect_leaks=1:fast_unwind_on_malloc=0:verbosity=2:malloc_context_size=30"
+                    ${CMAKE_CURRENT_BINARY_DIR}/build/${TESTNAME}
+            DEPENDS ${TESTNAME}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Running tests with Catch2 (with LeakSanitizer)"
+        )
+    else()
+        add_custom_target(test-run
+            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/build/${TESTNAME}
+            DEPENDS ${TESTNAME}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Running tests with Catch2"
+        )
+    endif()
 
     # Add convenience target that matches the test Makefile
     add_custom_target(build-binary
