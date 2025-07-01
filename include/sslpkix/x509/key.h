@@ -12,6 +12,7 @@
 #include "sslpkix/bio_wrapper.h"
 #include "sslpkix/iosink.h"
 #include "sslpkix/exception.h"
+#include "sslpkix/resource_ownership.h"
 
 namespace sslpkix {
 
@@ -299,9 +300,6 @@ namespace traits {
     };
 } // namespace traits
 
-// Forward declaration of PrivateKey
-class PrivateKey;
-
 //
 // NOTE: With OpenSSL, the private key also contains the public key information
 //
@@ -334,9 +332,21 @@ public:
 protected:
     detail::handle_ptr _handle{nullptr, detail::EVP_PKEY_Deleter()};
 
-    // Protected constructor for creating empty key (used by derived classes)
-    explicit Key(bool create_handle) {
-        if (create_handle) {
+    /**
+     * @brief This constructor is a protected, explicit, and inline constructor used for creating an empty key, primarily
+     * intended for use by derived classes. If the `create_handle` parameter is true, it initializes a new key by invoking
+     * `create_new_key()` and assigns a unique `key_id` using a static counter.
+     *
+     * @param auto_create_handle If true, a new EVP_PKEY is created and stored in _handle; otherwise, the _handle is left uninitialized.
+     *
+     * @throws `error::key::BadAllocError` if the key creation fails.
+     *
+     * @note 1. This constructor is not intended for direct use outside of the class hierarchy.
+     * @note 2. The `key_id` is assigned a unique value from a static counter to uniquely identify each key instance.
+     * @note 3. This constructor is used to create a new key when the `Key` object is instantiated without any parameters or when a new key is explicitly requested.
+     */
+    explicit Key(bool auto_create_handle) {
+        if (auto_create_handle) {
             create_new_key();
         }
         key_id = static_key_counter++;
@@ -357,18 +367,29 @@ protected:
     static int static_key_counter;
 
 public:
-    // Default constructor - creates a new key
+    /**
+     * @brief This inline default constructor initializes a new key by delegating to another constructor with a true argument.
+     * It simplifies the creation of a key with default behavior.
+     */
     Key() : Key(true) {}
 
-    // Constructor for external handle (does not create new key)
-    explicit Key(EVP_PKEY* external_handle) {
+    /**
+     * @brief This constructor initializes a Key object using an external EVP_PKEY handle without creating a new key.
+     * It assigns a unique key ID and sets the external handle.
+     *
+     * @param external_handle The existing EVP_PKEY handle to wrap.
+     * @param ownership The ownership semantics for the handle. If set to `ResourceOwnership::Transfer`, the Key will take ownership of the handle and free it when destroyed.
+     *
+     * @throws `error::key::RuntimeError` if the reference count increment fails when ownership is not transferred.
+     */
+    explicit Key(EVP_PKEY* external_handle, const ResourceOwnership ownership) {
         key_id = static_key_counter++;
         // auto provider = EVP_PKEY_get0_provider(external_handle);
         // if (!provider) {
         //     throw error::key::InvalidArgumentError("Cannot assign a legacy key");
         // }
         // std::cout << "Creating key (external) " << key_id << std::endl;
-        set_external_handle(external_handle);
+        set_external_handle(external_handle, ownership);
     }
 
     // Move constructor
@@ -465,12 +486,11 @@ public:
 
     /**
      * @brief Assign an existing key to this Key object.
-     * @note It does not create or copy the provided key.
-     * @note This method increments the reference count of the existing key so it can be safely used and free'd elsewhere.
+     *
      * @param key The existing EVP_PKEY to assign.
-     * @return true if the assignment was successful, false otherwise.
+     * @param ownership The ownership semantics for the handle. If set to `ResourceOwnership::Transfer`, the Key will take ownership of the handle and free it when destroyed.
      */
-    void assign(EVP_PKEY* key) {
+    void assign(EVP_PKEY* key, const ResourceOwnership ownership) {
         if (!key) {
             throw error::key::InvalidArgumentError("Cannot assign a null key");
         }
@@ -478,18 +498,25 @@ public:
         if (!provider) {
             throw error::key::InvalidArgumentError("Cannot assign a legacy key");
         }
-        if (!EVP_PKEY_up_ref(key)) {
-            throw error::key::RuntimeError("Failed to increment reference count of the key");
+
+        if (!should_own_resource(ownership)) {
+            // If we are not transferring ownership, we need to increment the reference count.
+            // This is necessary to ensure that the key is not freed while this Key object is still using it.
+            if (!EVP_PKEY_up_ref(key)) {
+                throw error::key::RuntimeError("Failed to increment reference count of the key");
+            }
         }
+
         _handle.reset(key);
     }
 
     /**
      * @brief Copies the contents of an existing key to this Key object.
+     *
+     * @param key The existing EVP_PKEY to copy.
+     *
      * @note This method creates a new EVP_PKEY by duplicating the existing key.
      * It copies both the public and private key information if available.
-     * @param key The existing EVP_PKEY to copy.
-     * @return true if the copy was successful, false otherwise.
      */
     void copy(const EVP_PKEY* key) {
         if (!key) {
@@ -570,35 +597,34 @@ public:
 
     /**
      * @brief Returns the public key (only) from a private key.
-     * @note This is a convenience method that extracts the public key from the private key.
+     *
      * @return A unique_ptr to a Key object containing only the public key.
+     *
+     * @note This is a convenience method that extracts the public key from the private key.
      */
     std::unique_ptr<Key> pubkey() const;
 
-    /**
-     * @brief Casts the key to a private key.
-     * @note This is a convenience method that returns a unique_ptr to a PrivateKey object.
-     * @return A unique_ptr to a PrivateKey object containing the original key material, which may contain the public key.
-     */
-    std::unique_ptr<PrivateKey> privkey() const {
-        return std::make_unique<PrivateKey>(_handle.get());
-    }
-
 protected:
     /**
-     * @brief Set the external handle object
-     * @note This method increments the reference count of the existing key so it can be safely used and free'd elsewhere.
+     * @brief Sets an external EVP_PKEY handle for the key.
+     * This method allows the Key object to wrap an existing EVP_PKEY handle.
      *
-     * @param handle
+     * @param handle The external EVP_PKEY handle to set.
+     * @param ownership The ownership semantics for the handle. If set to `ResourceOwnership::Transfer`, the Key will take ownership of the handle and free it when destroyed.
+     *
+     * @throws `error::key::RuntimeError` if the reference count increment fails.
      */
-    void set_external_handle(EVP_PKEY* handle) {
+    void set_external_handle(EVP_PKEY* handle, const ResourceOwnership ownership) {
         if (!handle) {
             _handle.reset();
             return;
         }
 
-        if (!EVP_PKEY_up_ref(handle)) {
-            throw error::key::RuntimeError("Failed to increment reference count of the external key");
+        if (!should_own_resource(ownership)) {
+            // If we are not transferring ownership, we need to increment the reference count.
+            if (!EVP_PKEY_up_ref(handle)) {
+                throw error::key::RuntimeError("Failed to increment reference count of the external key");
+            }
         }
         _handle.reset(handle);
     }
@@ -613,7 +639,7 @@ public:
     PrivateKey() : Key(true) {}
 
     // Constructor for external handle (does not create new key)
-    explicit PrivateKey(EVP_PKEY* external_handle) : Key(external_handle) {}
+    explicit PrivateKey(EVP_PKEY* external_handle, const ResourceOwnership ownership) : Key(external_handle, ownership) {}
 
     // Move constructor
     PrivateKey(PrivateKey&& other) noexcept : Key(std::move(other)) {}

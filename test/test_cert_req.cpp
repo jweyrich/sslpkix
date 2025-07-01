@@ -71,7 +71,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Copy Operati
     CertificateName subject = create_certificate_name();
 
     EVP_PKEY* keypair = create_keypair();
-    std::unique_ptr<PrivateKey> private_key = Key(keypair).privkey();
+    std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair, ResourceOwnership::Transfer);
     std::unique_ptr<Key> public_key = private_key->pubkey();
 
     REQUIRE(original.set_version(CertificateRequest::Version::v1));
@@ -149,7 +149,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Public Key O
 
     // Test data members
     EVP_PKEY* keypair = create_keypair();
-    std::unique_ptr<PrivateKey> private_key = Key(keypair).privkey();
+    std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair, ResourceOwnership::Transfer);
     std::unique_ptr<Key> public_key = private_key->pubkey();
 
     SECTION("Set and get public key") {
@@ -188,7 +188,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Signing Oper
     CertificateName subject = create_certificate_name();
 
     EVP_PKEY* keypair = create_keypair();
-    std::unique_ptr<PrivateKey> private_key = Key(keypair).privkey();
+    std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair, ResourceOwnership::Transfer);
     std::unique_ptr<Key> public_key = private_key->pubkey();
 
     REQUIRE(req.set_version(CertificateRequest::Version::v1));
@@ -248,7 +248,7 @@ TEST_CASE("CertificateRequest Extensions", "[certificate_request][extensions]") 
 
 TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Verification Operations", "[certificate_request][verification]") {
     EVP_PKEY* keypair = create_keypair();
-    std::unique_ptr<PrivateKey> private_key = Key(keypair).privkey();
+    std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair, ResourceOwnership::Transfer);
     std::unique_ptr<Key> public_key = private_key->pubkey();
 
     CertificateName subject = create_certificate_name();
@@ -278,7 +278,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest IO Operation
     CertificateName subject = create_certificate_name();
 
     EVP_PKEY* keypair = create_keypair();
-    std::unique_ptr<PrivateKey> private_key = Key(keypair).privkey();
+    std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair, ResourceOwnership::Transfer);
     std::unique_ptr<Key> public_key = private_key->pubkey();
 
     REQUIRE_NOTHROW(req.set_version(CertificateRequest::Version::v1));
@@ -336,7 +336,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Complete Wor
         CertificateName subject = create_certificate_name();
 
         EVP_PKEY* keypair = create_keypair();
-        std::unique_ptr<PrivateKey> private_key = Key(keypair).privkey();
+        std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair, ResourceOwnership::Transfer);
         std::unique_ptr<Key> public_key = private_key->pubkey();
 
         // Step 1: Set version
@@ -369,7 +369,7 @@ TEST_CASE_METHOD(CertificateRequestTestFixture, "CertificateRequest Error Handli
         CertificateName subject = create_certificate_name();
 
         EVP_PKEY* keypair = create_keypair();
-        std::unique_ptr<PrivateKey> private_key = Key(keypair).privkey();
+        std::unique_ptr<PrivateKey> private_key = std::make_unique<PrivateKey>(keypair, ResourceOwnership::Transfer);
         std::unique_ptr<Key> public_key = private_key->pubkey();
 
         REQUIRE_FALSE(req);

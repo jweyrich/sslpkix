@@ -23,7 +23,7 @@ struct KeyTestFixture {
     // Helper to create test PEM data
     std::string create_test_private_key_pem() {
         auto keypair = factory::generate_key_rsa(512);
-        PrivateKey private_key(keypair);
+        PrivateKey private_key(keypair, ResourceOwnership::Transfer);
 
         MemorySink memory_sink;
         REQUIRE_NOTHROW(memory_sink.open_rw());
@@ -74,10 +74,10 @@ TEST_CASE_METHOD(KeyTestFixture, "Key assignment", "[Key][assignment]") {
     auto keypair = factory::generate_key_rsa(512);
     REQUIRE(keypair != nullptr);
 
-    PrivateKey private_key(keypair);
+    PrivateKey private_key(keypair, ResourceOwnership::Transfer);
     Key new_key;
 
-    REQUIRE_NOTHROW(new_key.assign(keypair));
+    REQUIRE_NOTHROW(new_key.assign(keypair, ResourceOwnership::Default)); // Already owned by private_key above
     REQUIRE(new_key.algorithm() == KeyType::RSA);
     REQUIRE(new_key == private_key);
     REQUIRE(new_key.has_public_key());
@@ -89,13 +89,13 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
     auto keypair = factory::generate_key_rsa(512);
     REQUIRE(keypair != nullptr);
 
-    PrivateKey private_key(keypair);
+    PrivateKey private_key(keypair, ResourceOwnership::Transfer);
     auto pubkey_only = private_key.pubkey();
     Key *public_key = pubkey_only.get();
 
     SECTION("Assign RSA keypair") {
         Key new_key;
-        REQUIRE_NOTHROW(new_key.assign(keypair));
+        REQUIRE_NOTHROW(new_key.assign(keypair, ResourceOwnership::Default)); // Already owned by private_key above
         REQUIRE(new_key.algorithm() == KeyType::RSA);
         REQUIRE(new_key == *public_key);
         REQUIRE(new_key == private_key);
@@ -115,7 +115,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
 
     SECTION("Assign RSA public key") {
         Key new_key;
-        REQUIRE_NOTHROW(new_key.assign(public_key->handle()));
+        REQUIRE_NOTHROW(new_key.assign(public_key->handle(), ResourceOwnership::Default)); // Already owned by pubkey_only above
         REQUIRE(new_key.algorithm() == KeyType::RSA);
         REQUIRE(new_key == *public_key);
         REQUIRE(new_key == private_key);
@@ -141,7 +141,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
 //     REQUIRE(keypair != nullptr);
 //
 //     Key key;
-//     REQUIRE_NOTHROW(key.assign(keypair));
+//     REQUIRE_NOTHROW(key.assign(keypair, ResourceOwnership::Transfer));
 //     REQUIRE(key.algorithm() == KeyType::DSA);
 // }
 // #endif
@@ -152,7 +152,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key EC operations", "[Key][EC]") {
     REQUIRE(keypair != nullptr);
 
     Key key;
-    REQUIRE_NOTHROW(key.assign(keypair));
+    REQUIRE_NOTHROW(key.assign(keypair, ResourceOwnership::Transfer));
     REQUIRE(key.algorithm() == KeyType::EC);
 }
 #endif
@@ -168,7 +168,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
     SECTION("RSA key bit length") {
         auto keypair = factory::generate_key_rsa(512);
         REQUIRE(keypair != nullptr);
-        REQUIRE_NOTHROW(key.assign(keypair));
+        REQUIRE_NOTHROW(key.assign(keypair, ResourceOwnership::Transfer));
         REQUIRE(key.bit_length() == 512);
     }
     #endif
@@ -178,7 +178,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
     //     auto keypair = factory::generate_key_dsa(2048, 256);
     //     REQUIRE(keypair != nullptr);
     //
-    //     REQUIRE_NOTHROW(key.assign(keypair));
+    //     REQUIRE_NOTHROW(key.assign(keypair, ResourceOwnership::Transfer));
     //     REQUIRE(key.bit_length() == 512);
     // }
     // #endif
@@ -187,7 +187,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
     SECTION("EC key bit length") {
         auto keypair = factory::generate_key_ec(traits::EC::KeyGroup::P256);
         REQUIRE(keypair != nullptr);
-        REQUIRE_NOTHROW(key.assign(keypair));
+        REQUIRE_NOTHROW(key.assign(keypair, ResourceOwnership::Transfer));
         REQUIRE(key.bit_length() == 256);
     }
     #endif
@@ -205,11 +205,11 @@ TEST_CASE_METHOD(KeyTestFixture, "Key comparison operators", "[Key][comparison]"
     SECTION("Different keys comparison") {
         // Copying a key should result in an equal key
         // So comparing the copied key with the original should not throw an error
-        Key copied_key1(key1.handle());
+        Key copied_key1(key1.handle(), ResourceOwnership::Default); // Already owned by key1 above
         REQUIRE(copied_key1 == key1);
         REQUIRE_FALSE(copied_key1 != key1);
 
-        Key copied_key2(key2.handle());
+        Key copied_key2(key2.handle(), ResourceOwnership::Default); // Already owned by key2 above
         REQUIRE(copied_key2 == key2);
         REQUIRE_FALSE(copied_key2 != key2);
 
@@ -233,7 +233,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key external handle operations", "[Key][extern
     SECTION("Assign a null external handle") {
         EVP_PKEY* external_key = nullptr;
 
-        Key new_key(external_key);
+        Key new_key(external_key, ResourceOwnership::Transfer);
         REQUIRE(new_key.handle() == nullptr);
         REQUIRE(new_key.handle() == external_key);
     }
@@ -242,11 +242,9 @@ TEST_CASE_METHOD(KeyTestFixture, "Key external handle operations", "[Key][extern
         EVP_PKEY* external_key = EVP_PKEY_new();
         REQUIRE(external_key != nullptr);
 
-        Key new_key(external_key);
+        Key new_key(external_key, ResourceOwnership::Transfer);
         REQUIRE(new_key.handle() != nullptr);
         REQUIRE(new_key.handle() == external_key);
-
-        EVP_PKEY_free(external_key);
     }
 }
 
@@ -295,7 +293,7 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey constructor for external handle", "
     auto keypair = factory::generate_key_rsa(512);
     REQUIRE(keypair != nullptr);
 
-    PrivateKey private_key(keypair);
+    PrivateKey private_key(keypair, ResourceOwnership::Transfer);
     REQUIRE(private_key.handle() != nullptr);
     REQUIRE(private_key.has_handle());
     REQUIRE(private_key.algorithm() == KeyType::RSA);
@@ -325,7 +323,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key error conditions", "[Key][error]") {
     }
 
     SECTION("Assign null key") {
-        REQUIRE_THROWS_AS(key.assign(nullptr), error::key::InvalidArgumentError);
+        REQUIRE_THROWS_AS(key.assign(nullptr, ResourceOwnership::Transfer), error::key::InvalidArgumentError);
     }
 
     SECTION("Copy null key") {
@@ -353,10 +351,12 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey error conditions", "[PrivateKey][er
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Key pubkey", "[Key][pubkey]") {
-    auto raw_keypair = sslpkix::factory::generate_key_rsa(512);
-    auto keypair = sslpkix::Key(raw_keypair);
-    auto private_key = keypair.privkey(); // Result still contains the full keypair
-    auto public_key_only = private_key->pubkey(); // Result contains only the public key
+    auto keypair = sslpkix::factory::generate_key_rsa(512);
+    auto private_key = std::make_unique<sslpkix::PrivateKey>(keypair, ResourceOwnership::Transfer);
+    // Create a public key from the private key
+    auto public_key = std::make_unique<sslpkix::Key>(private_key->handle(), ResourceOwnership::Default); // Already owned by private_key above
+    // Extract the public key from the private key
+    auto extracted_public_key = private_key->pubkey();
 
     // Print the public keys to memory sinks
     MemorySink sink1, sink2;
@@ -364,8 +364,8 @@ TEST_CASE_METHOD(KeyTestFixture, "Key pubkey", "[Key][pubkey]") {
     sink2.open_rw();
 
     // Print the public keys to the memory sinks
-    keypair.print_ex(sink1.handle());
-    public_key_only->print_ex(sink2.handle());
+    public_key->print_ex(sink1.handle());
+    extracted_public_key->print_ex(sink2.handle());
 
     // Compare the printed public keys
     REQUIRE(sink1.read_all() == sink2.read_all());

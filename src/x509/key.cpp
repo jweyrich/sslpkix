@@ -44,6 +44,8 @@ std::unique_ptr<Key> Key::pubkey() const {
         if (!OSSL_PARAM_BLD_push_BN(params_builder.get(), OSSL_PKEY_PARAM_RSA_N, n) ||
             !OSSL_PARAM_BLD_push_BN(params_builder.get(), OSSL_PKEY_PARAM_RSA_E, e))
         {
+            BN_free(n);
+            BN_free(e);
             throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_*");
         }
 
@@ -114,7 +116,7 @@ std::unique_ptr<Key> Key::pubkey() const {
         throw error::key::RuntimeError("Failed on EVP_PKEY_fromdata");
     }
 
-    return std::make_unique<Key>(new_pub_key);
+    return std::make_unique<Key>(new_pub_key, ResourceOwnership::Transfer);
 }
 
 namespace factory {

@@ -61,23 +61,28 @@ TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName creation and basic
 
 TEST_CASE_METHOD(CertificateNameTestFixture, "CertificateName handle constructor", "[CertificateName][constructor]") {
 	SECTION("Valid handle construction") {
-		X509_NAME* raw_name = X509_NAME_new();
-		REQUIRE(raw_name != nullptr);
+		X509_NAME* raw_name1 = X509_NAME_new();
+		REQUIRE(raw_name1 != nullptr);
+		CertificateName managed_name(raw_name1, ResourceOwnership::Transfer);
+		REQUIRE(managed_name);
+		REQUIRE(managed_name.handle() == raw_name1);
 
-		CertificateName name(raw_name);
-		REQUIRE(name);
-		REQUIRE(name.handle() == raw_name);
+		X509_NAME* raw_name2 = X509_NAME_new();
+		REQUIRE(raw_name2 != nullptr);
+		CertificateName unmanaged_name(raw_name2, ResourceOwnership::Default);
+		REQUIRE(unmanaged_name);
+		REQUIRE(unmanaged_name.handle() == raw_name2);
 
 		// Cleanup the handle
-		X509_NAME_free(raw_name);
+		X509_NAME_free(raw_name2);
 	}
 
 	SECTION("Null handle does not throw exception") {
-		REQUIRE_NOTHROW(CertificateName(nullptr));
+		REQUIRE_NOTHROW(CertificateName(nullptr, ResourceOwnership::Transfer));
 	}
 
 	SECTION("Constructing with null handle") {
-		CertificateName null_name(nullptr);
+		CertificateName null_name(nullptr, ResourceOwnership::Transfer);
 		REQUIRE_FALSE(null_name);
 		REQUIRE(null_name.handle() == nullptr);
 		REQUIRE_FALSE(null_name.has_handle());

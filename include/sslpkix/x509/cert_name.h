@@ -9,6 +9,7 @@
 #include <openssl/bio.h>
 #include "sslpkix/bio_wrapper.h"
 #include "sslpkix/exception.h"
+#include "sslpkix/resource_ownership.h"
 
 namespace sslpkix {
 
@@ -53,11 +54,13 @@ public:
     }
 
     /**
-     * @brief Constructor for external handle (does not create new name)
-     * @note 1. Does not increment reference count
-     * @note 2. Does not take ownership
+     * @brief This constructor initializes a CertificateName object using an existing X509_NAME handle.
+     * It optionally transfers ownership of the handle, managing its lifecycle with a custom deleter based on the specified ResourceOwnership.
+     *
+     * @param external_handle The existing X509_NAME handle to wrap. If you pass a null handle, it will create an empty CertificateName.
+     * @param ownership The ownership semantics for the handle. If set to `ResourceOwnership::Transfer`, the CertificateName will take ownership of the handle and free it when destroyed.
      */
-    explicit CertificateName(X509_NAME* external_handle) : handle_(external_handle, Deleter{false}) {}
+    explicit CertificateName(X509_NAME* external_handle, const ResourceOwnership ownership) noexcept : handle_(external_handle, Deleter{should_own_resource(ownership)}) {}
 
     // Copy constructor - deep copy
     CertificateName(const CertificateName& other) {
@@ -322,6 +325,7 @@ public:
             unsigned char* enc2 = nullptr;
             int len2 = i2d_X509_NAME(rhs.handle_.get(), &enc2);
             if (len2 < 0) {
+                OPENSSL_free(enc1);
                 throw error::cert_name::RuntimeError("Failed to encode rhs certificate name");
             }
 

@@ -11,6 +11,7 @@
 #include "sslpkix/x509/key.h"
 #include "sslpkix/x509/cert_name.h"
 #include "sslpkix/exception.h"
+#include "sslpkix/resource_ownership.h"
 
 namespace sslpkix {
 
@@ -59,12 +60,17 @@ public:
         _handle.reset(new_cert);
     }
 
-    // Constructor for creating certificate from existing X509 handle
-    explicit Certificate(X509* cert_handle) {
-        if (!cert_handle) {
-            throw error::cert::InvalidArgumentError("Certificate handle cannot be null");
-        }
-        _handle.reset(cert_handle);
+    /**
+     * @brief This constructor initializes a Certificate object using an external X509 handle without creating a new certificate.
+     *
+     * @param external_handle The existing X509 handle to wrap.
+     * @param ownership The ownership semantics for the handle. If set to `ResourceOwnership::Transfer`, the Certificate will take ownership of the handle and free it when destroyed.
+     *
+     * @throws `error::cert::InvalidArgumentError` if the provided handle is null.
+     * @throws `error::cert::RuntimeError` if the reference count increment fails when ownership is not transferred.
+     */
+    explicit Certificate(handle_type* external_handle, const ResourceOwnership ownership) {
+        set_external_handle(external_handle, ownership);
     }
 
     // Copy constructor
@@ -281,6 +287,19 @@ public:
         }
     }
 
+    /**
+     * @brief Set the pubkey object
+     *
+     * @param key The public key to set for the certificate.
+     * @throws error::cert::LogicError if the certificate handle is null.
+     * @throws error::cert::InvalidArgumentError if the provided key is invalid.
+     * @throws error::cert::RuntimeError if setting the public key fails.
+     *
+     * @note
+     * This method sets the public key for the certificate.
+     * It does not duplicate the key or increment its reference count.
+     * It is the caller's responsibility to ensure the key remains valid.
+     */
     void set_pubkey(const Key& key) {
         if (!_handle) {
             throw error::cert::LogicError("Certificate handle is null");
@@ -289,12 +308,8 @@ public:
             throw error::cert::InvalidArgumentError("Invalid key");
         }
 
-        // X509_set_pubkey does not take ownership of the key
-        // so we need to increment the reference count of the key.
-        if (!EVP_PKEY_up_ref(key.handle())) {
-            throw error::cert::RuntimeError("Failed to increment reference count of the key");
-        }
-
+        // IMPORTANT: This does not duplicate the key or increment its reference count!
+        // It is the caller's responsibility to ensure the key remains valid.
         int ret = X509_set_pubkey(_handle.get(), key.handle());
         if (ret == 0) {
             throw error::cert::RuntimeError("Failed to set public key");
@@ -302,25 +317,23 @@ public:
     }
 
     const Key pubkey() const {
-        // Returns a pointer to the public key in the certificate request.
-        // We are responsible for incrementing the reference count of the key. It's currently done in Key::Key(EVP_PKEY* handle)
-        auto pubkey = X509_get0_pubkey(_handle.get());
+        // NOTE: On success, X509_get_pubkey returns the public key as an EVP_PKEY pointer with its reference count incremented.
+        auto pubkey = X509_get_pubkey(_handle.get());
         if (!pubkey) {
             throw error::cert::RuntimeError("Failed to get public key");
         }
 
-        return Key{pubkey}; // Increments reference count
+        return Key(pubkey, ResourceOwnership::Transfer);
     }
 
     Key pubkey() {
-        // Returns a pointer to the public key in the certificate request.
-        // We are responsible for incrementing the reference count of the key. It's currently done in Key::Key(EVP_PKEY* handle)
-        auto pubkey = X509_get0_pubkey(_handle.get());
+        // NOTE: On success, X509_get_pubkey returns the public key as an EVP_PKEY pointer with its reference count incremented.
+        auto pubkey = X509_get_pubkey(_handle.get());
         if (!pubkey) {
             throw error::cert::RuntimeError("Failed to get public key");
         }
 
-        return Key{pubkey}; // Increments reference count
+        return Key(pubkey, ResourceOwnership::Transfer);
     }
 
     void sign(const Key& key, Digest::type_e digest = Digest::TYPE_SHA1) {
@@ -428,7 +441,7 @@ public:
         if (!duplicated) {
             throw error::cert::RuntimeError("Failed to duplicate subject name");
         }
-        return CertificateName{duplicated}; // Takes ownership
+        return CertificateName{duplicated, ResourceOwnership::Transfer};
     }
 
     CertificateName subject() {
@@ -441,7 +454,7 @@ public:
         if (!duplicated) {
             throw error::cert::RuntimeError("Failed to duplicate subject name");
         }
-        return CertificateName{duplicated}; // Takes ownership
+        return CertificateName{duplicated, ResourceOwnership::Transfer};
     }
 
     void set_issuer(const CertificateName& issuer) {
@@ -467,7 +480,7 @@ public:
         if (!duplicated) {
             throw error::cert::RuntimeError("Failed to duplicate issuer name");
         }
-        return CertificateName{duplicated}; // Takes ownership
+        return CertificateName{duplicated, ResourceOwnership::Transfer};
     }
 
     CertificateName issuer() {
@@ -480,7 +493,7 @@ public:
         if (!duplicated) {
             throw error::cert::RuntimeError("Failed to duplicate issuer name");
         }
-        return CertificateName{duplicated}; // Takes ownership
+        return CertificateName{duplicated, ResourceOwnership::Transfer};
     }
 
     bool verify_signature(const Key& key) const {
@@ -579,6 +592,30 @@ public:
         swap(a._handle, b._handle);
     }
 
+protected:
+    /**
+     * @brief Sets an external X509 handle for the certificate.
+     * This method allows the Certificate object to wrap an existing X509 handle.
+     *
+     * @param handle The external X509 handle to set.
+     * @param ownership The ownership semantics for the handle. If set to `ResourceOwnership::Transfer`, the Certificate will take ownership of the handle and free it when destroyed.
+     *
+     * @throws `error::cert::InvalidArgumentError` if the provided handle is null.
+     * @throws `error::cert::RuntimeError` if the reference count increment fails.
+     */
+    void set_external_handle(handle_type* handle, const ResourceOwnership ownership) {
+        if (!handle) {
+            throw error::cert::InvalidArgumentError("Certificate handle cannot be null");
+        }
+
+        if (!should_own_resource(ownership)) {
+            // If we are not transferring ownership, we need to increment the reference count.
+            if (!X509_up_ref(handle)) {
+                throw error::key::RuntimeError("Failed to increment reference count of the external certificate");
+            }
+        }
+        _handle.reset(handle);
+    }
 private:
     handle_ptr _handle{nullptr, Deleter()};
 };
