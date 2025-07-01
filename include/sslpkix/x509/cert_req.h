@@ -66,11 +66,11 @@ public:
         if (other._handle) {
             auto other_handle = other._handle.get();
 
-            EVP_PKEY *test_pkey = X509_REQ_get_pubkey(other_handle);
+            // NOTE: X509_REQ_get0_pubkey does not create a new key nor increments the reference count.
+            EVP_PKEY *test_pkey = X509_REQ_get0_pubkey(other_handle);
             if (!test_pkey) {
                 throw error::cert_req::RuntimeError("X509_REQ_get_pubkey failed during copy construction");
             }
-            EVP_PKEY_free(test_pkey);
 
             // IMPORTANT: This is a workaround to avoid a bug in OpenSSL.
             // X509_REQ_dup is not working as expected in OpenSSL 3.5.0 8 Apr 2025
@@ -157,7 +157,19 @@ public:
         return static_cast<Version>(version);
     }
 
-    // Set public key
+    /**
+     * @brief Set the pubkey object
+     *
+     * @param key The public key to set for the certificate request.
+     * @throws error::cert_req::LogicError if the certificate request handle is null.
+     * @throws error::cert_req::InvalidArgumentError if the provided key is invalid.
+     * @throws error::cert_req::RuntimeError if setting the public key fails.
+     *
+     * @note
+     * This method sets the public key for the certificate.
+     * It does not duplicate the key or increment its reference count.
+     * It is the caller's responsibility to ensure the key remains valid.
+     */
     void set_pubkey(Key& key) {
         if (!_handle) {
             throw error::cert_req::LogicError("Certificate request handle is null");
@@ -166,12 +178,8 @@ public:
             throw error::cert_req::InvalidArgumentError("Invalid key");
         }
 
-        // X509_REQ_set_pubkey does not take ownership of the key
-        // so we need to increment the reference count of the key.
-        if (!EVP_PKEY_up_ref(key.handle())) {
-            throw error::cert_req::RuntimeError("Failed to increment reference count of the key");
-        }
-
+        // IMPORTANT: This does not duplicate the key or increment its reference count!
+        // It is the caller's responsibility to ensure the key remains valid.
         int ret = X509_REQ_set_pubkey(_handle.get(), key.handle());
         if (ret == 0) {
             throw error::cert_req::RuntimeError("Failed to set public key");
@@ -180,25 +188,23 @@ public:
 
     // Get public key
     const Key pubkey() const {
-        // Returns a pointer to the public key in the certificate request.
-        // We are responsible for incrementing the reference count of the key. It's currently done in Key::Key(EVP_PKEY* handle)
-        auto pubkey = X509_REQ_get0_pubkey(_handle.get());
+        // NOTE: On success, X509_REQ_get_pubkey returns the public key as an EVP_PKEY pointer with its reference count incremented.
+        auto pubkey = X509_REQ_get_pubkey(_handle.get());
         if (!pubkey) {
             throw error::cert_req::RuntimeError("Failed to get public key");
         }
 
-        return Key{pubkey}; // Increments reference count
+        return Key{pubkey, ResourceOwnership::Transfer};
     }
 
     Key pubkey() {
-        // Returns a pointer to the public key in the certificate request.
-        // We are responsible for incrementing the reference count of the key. It's currently done in Key::Key(EVP_PKEY* handle)
-        auto pubkey = X509_REQ_get0_pubkey(_handle.get());
+        // NOTE: On success, X509_REQ_get_pubkey returns the public key as an EVP_PKEY pointer with its reference count incremented.
+        auto pubkey = X509_REQ_get_pubkey(_handle.get());
         if (!pubkey) {
             throw error::cert_req::RuntimeError("Failed to get public key");
         }
 
-        return Key{pubkey}; // Increments reference count
+        return Key{pubkey, ResourceOwnership::Transfer};
     }
 
     // Sign the certificate request. Can be used with a private key or a public key

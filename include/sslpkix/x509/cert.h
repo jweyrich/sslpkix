@@ -300,6 +300,19 @@ public:
         }
     }
 
+    /**
+     * @brief Set the pubkey object
+     *
+     * @param key The public key to set for the certificate.
+     * @throws error::cert::LogicError if the certificate handle is null.
+     * @throws error::cert::InvalidArgumentError if the provided key is invalid.
+     * @throws error::cert::RuntimeError if setting the public key fails.
+     *
+     * @note
+     * This method sets the public key for the certificate.
+     * It does not duplicate the key or increment its reference count.
+     * It is the caller's responsibility to ensure the key remains valid.
+     */
     void set_pubkey(const Key& key) {
         if (!_handle) {
             throw error::cert::LogicError("Certificate handle is null");
@@ -308,12 +321,8 @@ public:
             throw error::cert::InvalidArgumentError("Invalid key");
         }
 
-        // X509_set_pubkey does not take ownership of the key
-        // so we need to increment the reference count of the key.
-        if (!EVP_PKEY_up_ref(key.handle())) {
-            throw error::cert::RuntimeError("Failed to increment reference count of the key");
-        }
-
+        // IMPORTANT: This does not duplicate the key or increment its reference count!
+        // It is the caller's responsibility to ensure the key remains valid.
         int ret = X509_set_pubkey(_handle.get(), key.handle());
         if (ret == 0) {
             throw error::cert::RuntimeError("Failed to set public key");
@@ -321,25 +330,23 @@ public:
     }
 
     const Key pubkey() const {
-        // Returns a pointer to the public key in the certificate request.
-        // We are responsible for incrementing the reference count of the key. It's currently done in Key::Key(EVP_PKEY* handle)
-        auto pubkey = X509_get0_pubkey(_handle.get());
+        // NOTE: On success, X509_get_pubkey returns the public key as an EVP_PKEY pointer with its reference count incremented.
+        auto pubkey = X509_get_pubkey(_handle.get());
         if (!pubkey) {
             throw error::cert::RuntimeError("Failed to get public key");
         }
 
-        return Key{pubkey}; // Increments reference count
+        return Key(pubkey, ResourceOwnership::Transfer);
     }
 
     Key pubkey() {
-        // Returns a pointer to the public key in the certificate request.
-        // We are responsible for incrementing the reference count of the key. It's currently done in Key::Key(EVP_PKEY* handle)
-        auto pubkey = X509_get0_pubkey(_handle.get());
+        // NOTE: On success, X509_get_pubkey returns the public key as an EVP_PKEY pointer with its reference count incremented.
+        auto pubkey = X509_get_pubkey(_handle.get());
         if (!pubkey) {
             throw error::cert::RuntimeError("Failed to get public key");
         }
 
-        return Key{pubkey}; // Increments reference count
+        return Key(pubkey, ResourceOwnership::Transfer);
     }
 
     void sign(const Key& key, Digest::type_e digest = Digest::TYPE_SHA1) {

@@ -12,6 +12,7 @@
 #include "sslpkix/bio_wrapper.h"
 #include "sslpkix/iosink.h"
 #include "sslpkix/exception.h"
+#include "sslpkix/resource_ownership.h"
 
 namespace sslpkix {
 
@@ -336,7 +337,7 @@ protected:
      * intended for use by derived classes. If the `create_handle` parameter is true, it initializes a new key by invoking
      * `create_new_key()` and assigns a unique `key_id` using a static counter.
      *
-     * @param create_handle If true, a new key is created; otherwise, the key is left uninitialized.
+     * @param auto_create_handle If true, a new EVP_PKEY is created and stored in _handle; otherwise, the _handle is left uninitialized.
      *
      * @throws `error::key::BadAllocError` if the key creation fails.
      *
@@ -344,8 +345,8 @@ protected:
      * @note 2. The `key_id` is assigned a unique value from a static counter to uniquely identify each key instance.
      * @note 3. This constructor is used to create a new key when the `Key` object is instantiated without any parameters or when a new key is explicitly requested.
      */
-    explicit Key(bool create_handle) {
-        if (create_handle) {
+    explicit Key(bool auto_create_handle) {
+        if (auto_create_handle) {
             create_new_key();
         }
         key_id = static_key_counter++;
@@ -377,15 +378,18 @@ public:
      * It assigns a unique key ID and sets the external handle.
      *
      * @param external_handle The existing EVP_PKEY handle to wrap.
+     * @param ownership The ownership semantics for the handle. If set to `ResourceOwnership::Transfer`, the Key will take ownership of the handle and free it when destroyed.
+     *
+     * @throws `error::key::RuntimeError` if the reference count increment fails when ownership is not transferred.
      */
-    explicit Key(EVP_PKEY* external_handle) {
+    explicit Key(EVP_PKEY* external_handle, const ResourceOwnership ownership) {
         key_id = static_key_counter++;
         // auto provider = EVP_PKEY_get0_provider(external_handle);
         // if (!provider) {
         //     throw error::key::InvalidArgumentError("Cannot assign a legacy key");
         // }
         // std::cout << "Creating key (external) " << key_id << std::endl;
-        set_external_handle(external_handle);
+        set_external_handle(external_handle, should_own_resource(ownership));
     }
 
     // Move constructor
@@ -602,17 +606,23 @@ protected:
      * This is useful when you want to use an existing key without duplicating it.
      *
      * @param handle The external EVP_PKEY handle to set.
+     * @param transfer_ownership
+     * If true, the Key object takes ownership of the external handle and will free it when destroyed.
+     * If false, the Key object does not take ownership and only increments the reference count of the handle.
      *
-     * @note This method increments the reference count of the existing key so it can be safely used and free'd elsewhere.
+     * @throws `error::key::RuntimeError` if the handle is null or if the reference count increment fails.
      */
-    void set_external_handle(EVP_PKEY* handle) {
+    void set_external_handle(EVP_PKEY* handle, bool transfer_ownership) {
         if (!handle) {
             _handle.reset();
             return;
         }
 
-        if (!EVP_PKEY_up_ref(handle)) {
-            throw error::key::RuntimeError("Failed to increment reference count of the external key");
+        if (!transfer_ownership) {
+            // If we are not transferring ownership, we need to increment the reference count.
+            if (!EVP_PKEY_up_ref(handle)) {
+                throw error::key::RuntimeError("Failed to increment reference count of the external key");
+            }
         }
         _handle.reset(handle);
     }
@@ -627,7 +637,7 @@ public:
     PrivateKey() : Key(true) {}
 
     // Constructor for external handle (does not create new key)
-    explicit PrivateKey(EVP_PKEY* external_handle) : Key(external_handle) {}
+    explicit PrivateKey(EVP_PKEY* external_handle, const ResourceOwnership ownership) : Key(external_handle, ownership) {}
 
     // Move constructor
     PrivateKey(PrivateKey&& other) noexcept : Key(std::move(other)) {}

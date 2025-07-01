@@ -116,7 +116,7 @@ std::unique_ptr<Key> Key::pubkey() const {
         throw error::key::RuntimeError("Failed on EVP_PKEY_fromdata");
     }
 
-    return std::make_unique<Key>(new_pub_key);
+    return std::make_unique<Key>(new_pub_key, ResourceOwnership::Transfer);
 }
 
 namespace factory {

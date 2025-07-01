@@ -23,7 +23,7 @@ struct KeyTestFixture {
     // Helper to create test PEM data
     std::string create_test_private_key_pem() {
         auto keypair = factory::generate_key_rsa(512);
-        PrivateKey private_key(keypair);
+        PrivateKey private_key(keypair, ResourceOwnership::Transfer);
 
         MemorySink memory_sink;
         REQUIRE_NOTHROW(memory_sink.open_rw());
@@ -74,7 +74,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key assignment", "[Key][assignment]") {
     auto keypair = factory::generate_key_rsa(512);
     REQUIRE(keypair != nullptr);
 
-    PrivateKey private_key(keypair);
+    PrivateKey private_key(keypair, ResourceOwnership::Transfer);
     Key new_key;
 
     REQUIRE_NOTHROW(new_key.assign(keypair));
@@ -89,7 +89,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
     auto keypair = factory::generate_key_rsa(512);
     REQUIRE(keypair != nullptr);
 
-    PrivateKey private_key(keypair);
+    PrivateKey private_key(keypair, ResourceOwnership::Transfer);
     auto pubkey_only = private_key.pubkey();
     Key *public_key = pubkey_only.get();
 
@@ -205,11 +205,11 @@ TEST_CASE_METHOD(KeyTestFixture, "Key comparison operators", "[Key][comparison]"
     SECTION("Different keys comparison") {
         // Copying a key should result in an equal key
         // So comparing the copied key with the original should not throw an error
-        Key copied_key1(key1.handle());
+        Key copied_key1(key1.handle(), ResourceOwnership::Default);
         REQUIRE(copied_key1 == key1);
         REQUIRE_FALSE(copied_key1 != key1);
 
-        Key copied_key2(key2.handle());
+        Key copied_key2(key2.handle(), ResourceOwnership::Default);
         REQUIRE(copied_key2 == key2);
         REQUIRE_FALSE(copied_key2 != key2);
 
@@ -233,7 +233,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key external handle operations", "[Key][extern
     SECTION("Assign a null external handle") {
         EVP_PKEY* external_key = nullptr;
 
-        Key new_key(external_key);
+        Key new_key(external_key, ResourceOwnership::Default);
         REQUIRE(new_key.handle() == nullptr);
         REQUIRE(new_key.handle() == external_key);
     }
@@ -242,11 +242,9 @@ TEST_CASE_METHOD(KeyTestFixture, "Key external handle operations", "[Key][extern
         EVP_PKEY* external_key = EVP_PKEY_new();
         REQUIRE(external_key != nullptr);
 
-        Key new_key(external_key);
+        Key new_key(external_key, ResourceOwnership::Transfer);
         REQUIRE(new_key.handle() != nullptr);
         REQUIRE(new_key.handle() == external_key);
-
-        EVP_PKEY_free(external_key);
     }
 }
 
@@ -295,7 +293,7 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey constructor for external handle", "
     auto keypair = factory::generate_key_rsa(512);
     REQUIRE(keypair != nullptr);
 
-    PrivateKey private_key(keypair);
+    PrivateKey private_key(keypair, ResourceOwnership::Transfer);
     REQUIRE(private_key.handle() != nullptr);
     REQUIRE(private_key.has_handle());
     REQUIRE(private_key.algorithm() == KeyType::RSA);
@@ -354,9 +352,9 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey error conditions", "[PrivateKey][er
 
 TEST_CASE_METHOD(KeyTestFixture, "Key pubkey", "[Key][pubkey]") {
     auto keypair = sslpkix::factory::generate_key_rsa(512);
-    auto private_key = std::make_unique<sslpkix::PrivateKey>(keypair);
+    auto private_key = std::make_unique<sslpkix::PrivateKey>(keypair, ResourceOwnership::Transfer);
     // Create a public key from the private key
-    auto public_key = std::make_unique<sslpkix::Key>(private_key->handle());
+    auto public_key = std::make_unique<sslpkix::Key>(private_key->handle(), ResourceOwnership::Default);
     // Extract the public key from the private key
     auto extracted_public_key = private_key->pubkey();
 

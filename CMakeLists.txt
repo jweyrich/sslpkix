@@ -76,7 +76,7 @@ file(GLOB_RECURSE TEST_SOURCES "${TEST_DIR}/*.c" "${TEST_DIR}/*.cpp")
 
 # Compiler flags
 set(CMAKE_C_STANDARD 17)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 # Build type specific compile options - cross-platform
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
