@@ -389,7 +389,7 @@ public:
         //     throw error::key::InvalidArgumentError("Cannot assign a legacy key");
         // }
         // std::cout << "Creating key (external) " << key_id << std::endl;
-        set_external_handle(external_handle, should_own_resource(ownership));
+        set_external_handle(external_handle, ownership);
     }
 
     // Move constructor
@@ -486,12 +486,11 @@ public:
 
     /**
      * @brief Assign an existing key to this Key object.
-     * @note It does not create or copy the provided key.
-     * @note This method increments the reference count of the existing key so it can be safely used and free'd elsewhere.
+     *
      * @param key The existing EVP_PKEY to assign.
-     * @return true if the assignment was successful, false otherwise.
+     * @param ownership The ownership semantics for the handle. If set to `ResourceOwnership::Transfer`, the Key will take ownership of the handle and free it when destroyed.
      */
-    void assign(EVP_PKEY* key) {
+    void assign(EVP_PKEY* key, const ResourceOwnership ownership) {
         if (!key) {
             throw error::key::InvalidArgumentError("Cannot assign a null key");
         }
@@ -499,18 +498,25 @@ public:
         if (!provider) {
             throw error::key::InvalidArgumentError("Cannot assign a legacy key");
         }
-        if (!EVP_PKEY_up_ref(key)) {
-            throw error::key::RuntimeError("Failed to increment reference count of the key");
+
+        if (!should_own_resource(ownership)) {
+            // If we are not transferring ownership, we need to increment the reference count.
+            // This is necessary to ensure that the key is not freed while this Key object is still using it.
+            if (!EVP_PKEY_up_ref(key)) {
+                throw error::key::RuntimeError("Failed to increment reference count of the key");
+            }
         }
+
         _handle.reset(key);
     }
 
     /**
      * @brief Copies the contents of an existing key to this Key object.
+     *
+     * @param key The existing EVP_PKEY to copy.
+     *
      * @note This method creates a new EVP_PKEY by duplicating the existing key.
      * It copies both the public and private key information if available.
-     * @param key The existing EVP_PKEY to copy.
-     * @return true if the copy was successful, false otherwise.
      */
     void copy(const EVP_PKEY* key) {
         if (!key) {
@@ -600,25 +606,21 @@ public:
 
 protected:
     /**
-     * @brief Sets an external EVP_PKEY handle for the key. It increments the reference count of the provided handle,
-     * throws a runtime error if the increment fails, and resets the internal handle to the provided one or clears it if the input is null.
-     * This allows the Key object to manage an external key without taking ownership of it.
-     * This is useful when you want to use an existing key without duplicating it.
+     * @brief Sets an external EVP_PKEY handle for the key.
+     * This method allows the Key object to wrap an existing EVP_PKEY handle.
      *
      * @param handle The external EVP_PKEY handle to set.
-     * @param transfer_ownership
-     * If true, the Key object takes ownership of the external handle and will free it when destroyed.
-     * If false, the Key object does not take ownership and only increments the reference count of the handle.
+     * @param ownership The ownership semantics for the handle. If set to `ResourceOwnership::Transfer`, the Key will take ownership of the handle and free it when destroyed.
      *
-     * @throws `error::key::RuntimeError` if the handle is null or if the reference count increment fails.
+     * @throws `error::key::RuntimeError` if the reference count increment fails.
      */
-    void set_external_handle(EVP_PKEY* handle, bool transfer_ownership) {
+    void set_external_handle(EVP_PKEY* handle, const ResourceOwnership ownership) {
         if (!handle) {
             _handle.reset();
             return;
         }
 
-        if (!transfer_ownership) {
+        if (!should_own_resource(ownership)) {
             // If we are not transferring ownership, we need to increment the reference count.
             if (!EVP_PKEY_up_ref(handle)) {
                 throw error::key::RuntimeError("Failed to increment reference count of the external key");

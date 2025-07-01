@@ -23,6 +23,7 @@ void cleanup(void) {
 		OSSL_PROVIDER_unload(g_provider);
 		g_provider = nullptr;
 	}
+	// The OPENSSL_cleanup() function deinitialises OpenSSL (both libcrypto and libssl)
 	OPENSSL_cleanup();
 }
 

@@ -77,7 +77,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key assignment", "[Key][assignment]") {
     PrivateKey private_key(keypair, ResourceOwnership::Transfer);
     Key new_key;
 
-    REQUIRE_NOTHROW(new_key.assign(keypair));
+    REQUIRE_NOTHROW(new_key.assign(keypair, ResourceOwnership::Default));
     REQUIRE(new_key.algorithm() == KeyType::RSA);
     REQUIRE(new_key == private_key);
     REQUIRE(new_key.has_public_key());
@@ -95,7 +95,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
 
     SECTION("Assign RSA keypair") {
         Key new_key;
-        REQUIRE_NOTHROW(new_key.assign(keypair));
+        REQUIRE_NOTHROW(new_key.assign(keypair, ResourceOwnership::Default));
         REQUIRE(new_key.algorithm() == KeyType::RSA);
         REQUIRE(new_key == *public_key);
         REQUIRE(new_key == private_key);
@@ -115,7 +115,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
 
     SECTION("Assign RSA public key") {
         Key new_key;
-        REQUIRE_NOTHROW(new_key.assign(public_key->handle()));
+        REQUIRE_NOTHROW(new_key.assign(public_key->handle(), ResourceOwnership::Default));
         REQUIRE(new_key.algorithm() == KeyType::RSA);
         REQUIRE(new_key == *public_key);
         REQUIRE(new_key == private_key);
@@ -141,7 +141,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key RSA operations", "[Key][RSA]") {
 //     REQUIRE(keypair != nullptr);
 //
 //     Key key;
-//     REQUIRE_NOTHROW(key.assign(keypair));
+//     REQUIRE_NOTHROW(key.assign(keypair, ResourceOwnership::Transfer));
 //     REQUIRE(key.algorithm() == KeyType::DSA);
 // }
 // #endif
@@ -152,7 +152,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key EC operations", "[Key][EC]") {
     REQUIRE(keypair != nullptr);
 
     Key key;
-    REQUIRE_NOTHROW(key.assign(keypair));
+    REQUIRE_NOTHROW(key.assign(keypair, ResourceOwnership::Transfer));
     REQUIRE(key.algorithm() == KeyType::EC);
 }
 #endif
@@ -168,7 +168,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
     SECTION("RSA key bit length") {
         auto keypair = factory::generate_key_rsa(512);
         REQUIRE(keypair != nullptr);
-        REQUIRE_NOTHROW(key.assign(keypair));
+        REQUIRE_NOTHROW(key.assign(keypair, ResourceOwnership::Transfer));
         REQUIRE(key.bit_length() == 512);
     }
     #endif
@@ -178,7 +178,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
     //     auto keypair = factory::generate_key_dsa(2048, 256);
     //     REQUIRE(keypair != nullptr);
     //
-    //     REQUIRE_NOTHROW(key.assign(keypair));
+    //     REQUIRE_NOTHROW(key.assign(keypair, ResourceOwnership::Transfer));
     //     REQUIRE(key.bit_length() == 512);
     // }
     // #endif
@@ -187,7 +187,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key bit_length method", "[Key][bit_length]") {
     SECTION("EC key bit length") {
         auto keypair = factory::generate_key_ec(traits::EC::KeyGroup::P256);
         REQUIRE(keypair != nullptr);
-        REQUIRE_NOTHROW(key.assign(keypair));
+        REQUIRE_NOTHROW(key.assign(keypair, ResourceOwnership::Transfer));
         REQUIRE(key.bit_length() == 256);
     }
     #endif
@@ -323,7 +323,7 @@ TEST_CASE_METHOD(KeyTestFixture, "Key error conditions", "[Key][error]") {
     }
 
     SECTION("Assign null key") {
-        REQUIRE_THROWS_AS(key.assign(nullptr), error::key::InvalidArgumentError);
+        REQUIRE_THROWS_AS(key.assign(nullptr, ResourceOwnership::Default), error::key::InvalidArgumentError);
     }
 
     SECTION("Copy null key") {

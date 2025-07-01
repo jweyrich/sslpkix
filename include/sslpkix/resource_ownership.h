@@ -11,7 +11,7 @@ enum class ResourceOwnership : unsigned int {
     Transfer = 1, // Takes ownership of the resource. The resource will be freed when the object is destroyed.
 };
 
-constexpr bool should_own_resource(ResourceOwnership value) noexcept {
+inline constexpr bool should_own_resource(ResourceOwnership value) noexcept {
     return value == ResourceOwnership::Transfer;
 }
 
