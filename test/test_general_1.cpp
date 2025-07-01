@@ -27,7 +27,7 @@ protected:
 		auto issuer = create_issuer();
 		auto subject = is_self_signed ? create_issuer() : create_subject();
 		auto keypair = sslpkix::factory::generate_key_rsa(512);
-		auto private_key = sslpkix::Key(keypair).privkey();
+		auto private_key = std::make_unique<sslpkix::PrivateKey>(keypair);
 		auto public_key = private_key->pubkey();
 		auto cert = create_certificate(*subject, *issuer, *public_key);
 		sign_certificate(*cert, *private_key);

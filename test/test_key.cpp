@@ -353,10 +353,12 @@ TEST_CASE_METHOD(KeyTestFixture, "PrivateKey error conditions", "[PrivateKey][er
 }
 
 TEST_CASE_METHOD(KeyTestFixture, "Key pubkey", "[Key][pubkey]") {
-    auto raw_keypair = sslpkix::factory::generate_key_rsa(512);
-    auto keypair = sslpkix::Key(raw_keypair);
-    auto private_key = keypair.privkey(); // Result still contains the full keypair
-    auto public_key_only = private_key->pubkey(); // Result contains only the public key
+    auto keypair = sslpkix::factory::generate_key_rsa(512);
+    auto private_key = std::make_unique<sslpkix::PrivateKey>(keypair);
+    // Create a public key from the private key
+    auto public_key = std::make_unique<sslpkix::Key>(private_key->handle());
+    // Extract the public key from the private key
+    auto extracted_public_key = private_key->pubkey();
 
     // Print the public keys to memory sinks
     MemorySink sink1, sink2;
@@ -364,8 +366,8 @@ TEST_CASE_METHOD(KeyTestFixture, "Key pubkey", "[Key][pubkey]") {
     sink2.open_rw();
 
     // Print the public keys to the memory sinks
-    keypair.print_ex(sink1.handle());
-    public_key_only->print_ex(sink2.handle());
+    public_key->print_ex(sink1.handle());
+    extracted_public_key->print_ex(sink2.handle());
 
     // Compare the printed public keys
     REQUIRE(sink1.read_all() == sink2.read_all());
