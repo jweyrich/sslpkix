@@ -566,7 +566,10 @@ public:
     }
 
     /**
-     * @brief Returns a public key from a private key.
+     * @brief Returns the public key (only) from a private key.
+     *
+     * @return A unique_ptr to a Key object containing only the public key.
+     *
      * @note This is a convenience method that extracts the public key from the private key.
      */
     std::unique_ptr<Key> pubkey() const;
