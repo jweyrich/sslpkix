@@ -14,6 +14,7 @@
 #include "sslpkix/iosink.h"
 #include "sslpkix/exception.h"
 #include "sslpkix/resource_ownership.h"
+#include "sslpkix/x509/key_capabilities.h"
 
 namespace sslpkix {
 
@@ -168,8 +169,8 @@ namespace traits {
         static constexpr KeyType key_type = KeyType::RSA;
         static constexpr int evp_pkey_type = EVP_PKEY_RSA;
         static constexpr bool can_select_digest = true;
-        static constexpr bool can_key_exchange = true;
-        static constexpr bool can_sign = true;
+        // NOTE: RSA keys can be used for both signatures and encryption
+        static constexpr key_capabilities capabilities = key_capabilities::Signature | key_capabilities::Encryption;
         static constexpr auto generate_func = traits::RSA::generate_key;
         static constexpr auto extract_pubkey_params_func = traits::RSA::extract_pubkey_params;
     };
@@ -229,8 +230,8 @@ namespace traits {
         static constexpr KeyType key_type = KeyType::DSA;
         static constexpr int evp_pkey_type = EVP_PKEY_DSA;
         static constexpr bool can_select_digest = true;
-        static constexpr bool can_key_exchange = false; // DSA keys are only for digital signatures
-        static constexpr bool can_sign = true;
+        // NOTE: DSA keys are primarily used for digital signatures
+        static constexpr key_capabilities capabilities = key_capabilities::Signature;
         static constexpr auto generate_func = traits::DSA::generate_key;
         static constexpr auto extract_pubkey_params_func = traits::DSA::extract_pubkey_params;
     };
@@ -301,9 +302,9 @@ namespace traits {
     struct key_type_traits<traits::DH> {
         static constexpr KeyType key_type = KeyType::DH;
         static constexpr int evp_pkey_type = EVP_PKEY_DH;
-        static constexpr bool can_select_digest = false; // DH keys do not support digest selection
-        static constexpr bool can_key_exchange = true; // DH keys are primarily used for key exchange
-        static constexpr bool can_sign = false; // DH keys do not support signing
+        // NOTE: DH keys do not support digest selection
+        static constexpr bool can_select_digest = false;
+        static constexpr key_capabilities capabilities = key_capabilities::KeyExchange;
         static constexpr auto generate_func = traits::DH::generate_key;
         static constexpr auto extract_pubkey_params_func = traits::DH::extract_pubkey_params;
     };
@@ -363,12 +364,11 @@ namespace traits {
     struct key_type_traits<traits::EC> {
         static constexpr KeyType key_type = KeyType::EC;
         static constexpr int evp_pkey_type = EVP_PKEY_EC;
-        static constexpr bool can_select_digest = false; // EC keys do not support digest selection
-        // Note: EC keys can be used for both signatures and key exchange, but the specific
+        static constexpr bool can_select_digest = false;
+        // NOTE: EC keys can be used for both signatures and key exchange, but the specific
         // capabilities depend on the curve and the context in which they are used.
         // For example, P-256 can be used for ECDH key exchange, while P-384 and P-521 are often used for digital signatures.
-        static constexpr bool can_key_exchange = true;
-        static constexpr bool can_sign = true;
+        static constexpr key_capabilities capabilities = key_capabilities::KeyExchange | key_capabilities::Signature;
         static constexpr auto generate_func = traits::EC::generate_key;
         static constexpr auto extract_pubkey_params_func = traits::EC::extract_pubkey_params;
     };
@@ -410,9 +410,10 @@ namespace traits {
     struct key_type_traits<traits::ED> {
         static constexpr KeyType key_type = KeyType::ED25519;
         static constexpr int evp_pkey_type = EVP_PKEY_ED25519;
-        static constexpr bool can_select_digest = false; // ED keys do not support digest selection
-        static constexpr bool can_key_exchange = false; // ED keys do not support key exchange
-        static constexpr bool can_sign = true; // ED keys are primarily used for digital signatures (except X25519 and X448)
+        // NOTE: ED keys do not support digest selection
+        static constexpr bool can_select_digest = false;
+        // NOTE: ED keys are primarily used for digital signatures (except X25519 and X448)
+        static constexpr key_capabilities capabilities = key_capabilities::Signature;
         static constexpr auto generate_func = traits::ED::generate_key;
         static constexpr auto extract_pubkey_params_func = traits::ED::extract_pubkey_params;
     };
@@ -432,9 +433,10 @@ namespace traits {
     struct key_type_traits<traits::X25519> {
         static constexpr KeyType key_type = KeyType::X25519;
         static constexpr int evp_pkey_type = EVP_PKEY_X25519;
-        static constexpr bool can_select_digest = false; // X25519 keys do not support digest selection
-        static constexpr bool can_key_exchange = true; // X25519 keys are primarily used for key exchange
-        static constexpr bool can_sign = false; // X25519 keys do not support signing
+        // NOTE: X25519 keys do not support digest selection
+        static constexpr bool can_select_digest = false;
+        // NOTE: X25519 keys are primarily used for key exchange
+        static constexpr key_capabilities capabilities = key_capabilities::KeyExchange;
         static constexpr auto generate_func = traits::X25519::generate_key;
         static constexpr auto extract_pubkey_params_func = traits::X25519::extract_pubkey_params;
     };
@@ -449,14 +451,15 @@ namespace traits {
         }
     };
 
-    // X25519 key traits specialization
+    // X448 key traits specialization
     template<>
     struct key_type_traits<traits::X448> {
         static constexpr KeyType key_type = KeyType::X448;
         static constexpr int evp_pkey_type = EVP_PKEY_X448;
-        static constexpr bool can_select_digest = false; // X448 keys do not support digest selection
-        static constexpr bool can_key_exchange = true; // X448 keys are primarily used for key exchange
-        static constexpr bool can_sign = false; // X448 keys do not support signing
+        // NOTE: X448 keys do not support digest selection
+        static constexpr bool can_select_digest = false;
+        // NOTE: X448 keys are primarily used for key exchange
+        static constexpr key_capabilities capabilities = key_capabilities::KeyExchange;
         static constexpr auto generate_func = traits::X448::generate_key;
         static constexpr auto extract_pubkey_params_func = traits::X448::extract_pubkey_params;
     };
