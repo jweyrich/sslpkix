@@ -258,7 +258,7 @@ public:
         if (!duplicated) {
             throw error::cert_req::RuntimeError("Failed to duplicate subject name");
         }
-        return CertificateName{duplicated}; // Takes ownership by default
+        return CertificateName{duplicated, ResourceOwnership::Transfer};
     }
 
     CertificateName subject() {
@@ -271,7 +271,7 @@ public:
         if (!duplicated) {
             throw error::cert_req::RuntimeError("Failed to duplicate subject name");
         }
-        return CertificateName{duplicated}; // Takes ownership by default
+        return CertificateName{duplicated, ResourceOwnership::Transfer};
     }
 
     // Verify signature
