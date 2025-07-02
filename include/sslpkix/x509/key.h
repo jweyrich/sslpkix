@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <openssl/core_names.h>
 #include <openssl/evp.h>
+#include <openssl/param_build.h>
 #include <openssl/pem.h>
 #include <openssl/opensslv.h>
 #include "sslpkix/bio_wrapper.h"
@@ -117,6 +118,10 @@ namespace traits {
     template<typename T>
     constexpr bool is_key_type_supported_v = is_key_type_supported<T>::value;
 
+    using ossl_param_ptr = std::unique_ptr<OSSL_PARAM, decltype(&OSSL_PARAM_free)>;
+
+    ossl_param_ptr build_key_params(OSSL_PARAM_BLD* builder);
+
     #ifndef OPENSSL_NO_RSA
     struct RSA {
         static inline EVP_PKEY* generate_key(int bits) {
@@ -126,6 +131,34 @@ namespace traits {
             };
 
             return factory::generate_key_ex("RSA", params);
+        }
+
+        static ossl_param_ptr extract_pubkey_params(EVP_PKEY* pkey, OSSL_PARAM_BLD* params_builder) {
+            // RSA parameters (n, e) and public key
+            struct RSAParams {
+                BIGNUM* n = nullptr;
+                BIGNUM* e = nullptr;
+                ~RSAParams() {
+                    BN_free(n);
+                    BN_free(e);
+                }
+            } rsa_params;
+
+            // Get all RSA parameters including public key (n, e)
+            if (!EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_N, &rsa_params.n) ||
+                !EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_E, &rsa_params.e))
+            {
+                throw error::key::RuntimeError("Failed on EVP_PKEY_get_bn_param");
+            }
+
+            // Push parameters in correct order
+            if (!OSSL_PARAM_BLD_push_BN(params_builder, OSSL_PKEY_PARAM_RSA_N, rsa_params.n) ||
+                !OSSL_PARAM_BLD_push_BN(params_builder, OSSL_PKEY_PARAM_RSA_E, rsa_params.e))
+            {
+                throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_*");
+            }
+
+            return build_key_params(params_builder);
         }
     };
 
@@ -138,6 +171,7 @@ namespace traits {
         static constexpr bool can_key_exchange = true;
         static constexpr bool can_sign = true;
         static constexpr auto generate_func = traits::RSA::generate_key;
+        static constexpr auto extract_pubkey_params_func = traits::RSA::extract_pubkey_params;
     };
     #endif
 
@@ -151,6 +185,42 @@ namespace traits {
             };
             return factory::generate_key_ex("DSA", params);
         }
+
+        static ossl_param_ptr extract_pubkey_params(EVP_PKEY* pkey, OSSL_PARAM_BLD* params_builder) {
+            // DSA parameters (p, q, g) and public key (y)
+            struct DSAParams {
+                BIGNUM* p = nullptr;
+                BIGNUM* q = nullptr;
+                BIGNUM* g = nullptr;
+                BIGNUM* pub_key = nullptr;
+                ~DSAParams() {
+                    BN_free(p);
+                    BN_free(q);
+                    BN_free(g);
+                    BN_free(pub_key);
+                }
+            } dsa_params;
+
+            // Get all DSA parameters including public key (y)
+            if (!EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_FFC_P, &dsa_params.p) ||
+                !EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_FFC_Q, &dsa_params.q) ||
+                !EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_FFC_G, &dsa_params.g) ||
+                !EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, &dsa_params.pub_key))
+            {
+                throw error::key::RuntimeError("Failed on EVP_PKEY_get_bn_param for DSA parameters");
+            }
+
+            // Push parameters in correct order
+            if (!OSSL_PARAM_BLD_push_BN(params_builder, OSSL_PKEY_PARAM_FFC_P, dsa_params.p) ||
+                !OSSL_PARAM_BLD_push_BN(params_builder, OSSL_PKEY_PARAM_FFC_Q, dsa_params.q) ||
+                !OSSL_PARAM_BLD_push_BN(params_builder, OSSL_PKEY_PARAM_FFC_G, dsa_params.g) ||
+                !OSSL_PARAM_BLD_push_BN(params_builder, OSSL_PKEY_PARAM_PUB_KEY, dsa_params.pub_key))
+            {
+                throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_* for DSA parameters");
+            }
+
+            return build_key_params(params_builder);
+        }
     };
 
     // DSA key traits specialization
@@ -162,6 +232,7 @@ namespace traits {
         static constexpr bool can_key_exchange = false; // DSA keys are only for digital signatures
         static constexpr bool can_sign = true;
         static constexpr auto generate_func = traits::DSA::generate_key;
+        static constexpr auto extract_pubkey_params_func = traits::DSA::extract_pubkey_params;
     };
     #endif
 
@@ -191,6 +262,38 @@ namespace traits {
             };
             return factory::generate_key_ex("DH", params);
         }
+
+        static ossl_param_ptr extract_pubkey_params(EVP_PKEY* pkey, OSSL_PARAM_BLD* params_builder) {
+            // DH parameters (p, g) and public key (pub_key)
+            struct DHParams {
+                BIGNUM* p = nullptr;
+                BIGNUM* g = nullptr;
+                BIGNUM* pub_key = nullptr;
+                ~DHParams() {
+                    BN_free(p);
+                    BN_free(g);
+                    BN_free(pub_key);
+                }
+            } dh_params;
+
+            // Get all DH parameters including public key
+            if (!EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_FFC_P, &dh_params.p) ||
+                !EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_FFC_G, &dh_params.g) ||
+                !EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, &dh_params.pub_key))
+            {
+                throw error::key::RuntimeError("Failed on EVP_PKEY_get_bn_param for DH parameters");
+            }
+
+            // Push parameters in correct order
+            if (!OSSL_PARAM_BLD_push_BN(params_builder, OSSL_PKEY_PARAM_FFC_P, dh_params.p) ||
+                !OSSL_PARAM_BLD_push_BN(params_builder, OSSL_PKEY_PARAM_FFC_G, dh_params.g) ||
+                !OSSL_PARAM_BLD_push_BN(params_builder, OSSL_PKEY_PARAM_PUB_KEY, dh_params.pub_key))
+            {
+                throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_* for DH parameters");
+            }
+
+            return build_key_params(params_builder);
+        }
     };
 
     // DH key traits specialization
@@ -202,6 +305,7 @@ namespace traits {
         static constexpr bool can_key_exchange = true; // DH keys are primarily used for key exchange
         static constexpr bool can_sign = false; // DH keys do not support signing
         static constexpr auto generate_func = traits::DH::generate_key;
+        static constexpr auto extract_pubkey_params_func = traits::DH::extract_pubkey_params;
     };
     #endif
 
@@ -224,6 +328,34 @@ namespace traits {
             };
             return factory::generate_key_ex("EC", params);
         }
+
+        static ossl_param_ptr extract_pubkey_params(EVP_PKEY* pkey, OSSL_PARAM_BLD* params_builder) {
+            // Extract curve name
+            char curve_name[80];
+            size_t curve_len = 0;
+            if (EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, curve_name, sizeof(curve_name), &curve_len) != 1) {
+                throw error::key::RuntimeError("Failed on EVP_PKEY_get_utf8_string_param");
+            }
+
+            // Get public key
+            size_t pubkey_len = 0;
+            if (EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, nullptr, 0, &pubkey_len) != 1) {
+                throw error::key::RuntimeError("Failed on EVP_PKEY_get_octet_string_param (size)");
+            }
+
+            std::vector<unsigned char> pubkey(pubkey_len);
+            if (EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len, nullptr) != 1) {
+                throw error::key::RuntimeError("Failed on EVP_PKEY_get_octet_string_param (data)");
+            }
+
+            if (!OSSL_PARAM_BLD_push_utf8_string(params_builder, OSSL_PKEY_PARAM_GROUP_NAME, curve_name, curve_len) ||
+                !OSSL_PARAM_BLD_push_octet_string(params_builder, OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len))
+            {
+                throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_*");
+            }
+
+            return build_key_params(params_builder);
+        }
     };
 
     // EC key traits specialization
@@ -238,6 +370,7 @@ namespace traits {
         static constexpr bool can_key_exchange = true;
         static constexpr bool can_sign = true;
         static constexpr auto generate_func = traits::EC::generate_key;
+        static constexpr auto extract_pubkey_params_func = traits::EC::extract_pubkey_params;
     };
     #endif
 
@@ -252,6 +385,24 @@ namespace traits {
             const char* key_type_name = OBJ_nid2sn(static_cast<int>(type));
             return factory::generate_key_ex(key_type_name);
         }
+
+        static ossl_param_ptr extract_pubkey_params(EVP_PKEY* pkey, OSSL_PARAM_BLD* params_builder) {
+            size_t pubkey_len = 0;
+            if (EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, nullptr, 0, &pubkey_len) != 1) {
+                throw error::key::RuntimeError("Failed on EVP_PKEY_get_octet_string_param (size)");
+            }
+
+            std::vector<unsigned char> pubkey(pubkey_len);
+            if (EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len, nullptr) != 1) {
+                throw error::key::RuntimeError("Failed on EVP_PKEY_get_octet_string_param (data)");
+            }
+
+            if (!OSSL_PARAM_BLD_push_octet_string(params_builder, OSSL_PKEY_PARAM_PUB_KEY, pubkey.data(), pubkey_len)) {
+                throw error::key::RuntimeError("Failed on OSSL_PARAM_BLD_push_*");
+            }
+
+            return build_key_params(params_builder);
+        }
     };
 
     // ED key traits specialization
@@ -263,11 +414,16 @@ namespace traits {
         static constexpr bool can_key_exchange = false; // ED keys do not support key exchange
         static constexpr bool can_sign = true; // ED keys are primarily used for digital signatures (except X25519 and X448)
         static constexpr auto generate_func = traits::ED::generate_key;
+        static constexpr auto extract_pubkey_params_func = traits::ED::extract_pubkey_params;
     };
 
     struct X25519 {
         static inline EVP_PKEY* generate_key() {
             return factory::generate_key_ex("X25519");
+        }
+
+        static ossl_param_ptr extract_pubkey_params(EVP_PKEY* pkey, OSSL_PARAM_BLD* params_builder) {
+            return traits::ED::extract_pubkey_params(pkey, params_builder);
         }
     };
 
@@ -280,11 +436,16 @@ namespace traits {
         static constexpr bool can_key_exchange = true; // X25519 keys are primarily used for key exchange
         static constexpr bool can_sign = false; // X25519 keys do not support signing
         static constexpr auto generate_func = traits::X25519::generate_key;
+        static constexpr auto extract_pubkey_params_func = traits::X25519::extract_pubkey_params;
     };
 
     struct X448 {
         static inline EVP_PKEY* generate_key() {
             return factory::generate_key_ex("X448");
+        }
+
+        static ossl_param_ptr extract_pubkey_params(EVP_PKEY* pkey, OSSL_PARAM_BLD* params_builder) {
+            return traits::ED::extract_pubkey_params(pkey, params_builder);
         }
     };
 
@@ -297,7 +458,20 @@ namespace traits {
         static constexpr bool can_key_exchange = true; // X448 keys are primarily used for key exchange
         static constexpr bool can_sign = false; // X448 keys do not support signing
         static constexpr auto generate_func = traits::X448::generate_key;
+        static constexpr auto extract_pubkey_params_func = traits::X448::extract_pubkey_params;
     };
+
+    // Function to extract public key parameters from a key based on a type
+    template<typename KeyType, typename... Args,
+        std::enable_if_t<
+            std::is_invocable_v<decltype(traits::key_type_traits<KeyType>::extract_pubkey_params_func), Args...>, int> = 0>
+    inline traits::ossl_param_ptr extract_pubkey_parameters(Args&&... args) {
+        static_assert(traits::is_key_type_supported_v<KeyType>, "Key type not supported");
+        return traits::key_type_traits<KeyType>::extract_pubkey_params_func(std::forward<Args>(args)...);
+    }
+
+    // Function to extract public key parameters from a key based on a type name
+    traits::ossl_param_ptr extract_pubkey_parameters(const char *key_type_name, EVP_PKEY* pkey, OSSL_PARAM_BLD* params_builder);
 } // namespace traits
 
 //
