@@ -18,7 +18,6 @@ ossl_param_ptr traits::build_key_params(OSSL_PARAM_BLD* builder) {
 }
 
 traits::ossl_param_ptr traits::extract_pubkey_parameters(const char *key_type_name, EVP_PKEY* pkey, OSSL_PARAM_BLD* params_builder) {
-
     if (!key_type_name || !pkey || !params_builder) {
         throw error::key::InvalidArgumentError("Invalid arguments for extracting public key parameters");
     }
