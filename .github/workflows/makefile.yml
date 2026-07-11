@@ -33,12 +33,12 @@ jobs:
             cmake_args: ""
 
           # macOS builds
-          - os: macos-13
+          - os: macos-14  # Apple Silicon
             compiler: clang
             cc: clang
             cxx: clang++
             cmake_args: ""
-          - os: macos-14  # Apple Silicon
+          - os: macos-15
             compiler: clang
             cc: clang
             cxx: clang++
